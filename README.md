@@ -86,7 +86,7 @@ Distributed under the MIT license.
 
 ## Acknowledgements
 
-The launcher icon code within FAR was originally extracted from version XYZ of the [flutter_launcher_icon package](https://pub.dev/packages/flutter_launcher_icons).
 
 The basis for this package was originally [https://github.com/sarj33t/flutter_app_rebrand](https://github.com/sarj33t/flutter_app_rebrand)
 
+All code from originally extracted from the [flutter_launcher_icon package](https://pub.dev/packages/flutter_launcher_icons) has been removed and we use the package directly.
