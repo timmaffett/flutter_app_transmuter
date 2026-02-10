@@ -1,0 +1,9 @@
+{ "copyfiles":
+  {
+     "source1.txt":"destination_dir/copied_file.txt",
+     "source2.txt":"another_dir/",
+     "source4.txt":"destination_dir",
+     "source3.txt":"another_dir/source4.txt",
+     "./usejson.dart": "another_dir/thecopiedsource.dart"
+  }
+}

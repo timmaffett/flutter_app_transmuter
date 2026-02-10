@@ -1,0 +1,24 @@
+{
+  "AndroidSHA-1Fingerprint": "7f:23:45:34:34:54:f2:a3:43:23:0c:34:4e:9c:ae:bc:fa:43:f1:3a",
+  "androidGoogleMapsSDKApiKey": "AIthisIsAFakeAndroidGoogleMapsAPIKey",
+  "iosGoogleMapsSDKApiKey": "AIthisIsAFakeIOSGoogleMapsAPIKey", 
+
+  "packageName": "xyz.hiveright.tester",
+  "launcherIconPath": "brand/mybrand/logo.png",
+  "appName": "Test App To Transmute",
+  "iosBundleIdentifier": "xyz.hiveright.testerIOS",
+  "iosBundleDisplayName": "Test IOS App To Transmute"
+
+
+IN "android/app/src/main/res/value/strings.xml"
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="facebook_app_id">#######</string>
+    <string name="facebook_client_token">########<string>
+    <string name="default_notification_channel_id">##########AppChannel</string>
+</resources>
+
+WE WILL NEED TO CHANGE   default_notification_channel_id  
+
+}

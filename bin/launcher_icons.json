@@ -1,0 +1,12 @@
+{
+  "flutter_launcher_icons": {
+    "image_path_android": "assets/images/brand/appicon_round_1024x1024.png",
+    "image_path_ios": "assets/images/brand/appicon_square_1024x1024.png",
+    "android": "branded_ic_launcher",
+    "ios": true,
+    "universal_ios": true,
+    "min_sdk_android": 21,
+    "remove_alpha_ios": true,
+    "background_color_ios": "#ffffff"
+  }
+}

@@ -1,0 +1,17 @@
+{
+ "name": "Main Object",
+ "include_config": "config.json",
+ "nested": {
+  "include_nested": "nested.json",
+  "other": "value"
+ },
+ "array": [
+  {
+   "include_array": "array.json",
+   "array_value": "test"
+  },
+  {
+   "array_value_2": "test2"
+  }
+ ]
+}
