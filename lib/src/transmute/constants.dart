@@ -65,6 +65,9 @@ class Constants {
 
 
   static const String transmuteDefintionFile = 'transmute.json';
+  static const String transmuteOperationsFile = 'transmute_operations.yaml';
+  static const String brandSourceDirectoryKey = 'brand_source_directory';
+  static const String brandNameKey = 'brand_name';
   static const String masterTransmuteFile = 'master_transmute.yaml';
   static const String pubspecYamlFile = 'pubspec.yaml';
 

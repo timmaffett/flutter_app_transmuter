@@ -4,6 +4,49 @@ import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:chalkdart/chalkstrings.dart';
 
 
+/// Prints a message with each character colored in a rainbow hue cycle using HSL.
+/// The hue changes smoothly across the full 0-360 range, with finer
+/// gradations for longer messages.
+void printRainbow(String message) {
+  if (message.isEmpty) return;
+  final runes = message.runes.toList();
+  // Calculate visual width: emojis are typically 2 columns wide in the terminal
+  int visualWidth = 0;
+  for (final rune in runes) {
+    visualWidth += _isWideChar(rune) ? 2 : 1;
+  }
+  final pad = (' ' * visualWidth).onDarkGrey;
+  // Find leading/trailing padding boundaries
+  int firstNonSpace = runes.indexWhere((r) => r != 0x20);
+  int lastNonSpace = runes.lastIndexWhere((r) => r != 0x20);
+  if (firstNonSpace == -1) firstNonSpace = 0;
+  if (lastNonSpace == -1) lastNonSpace = runes.length - 1;
+  final buffer = StringBuffer();
+  for (int i = 0; i < runes.length; i++) {
+    final char = String.fromCharCode(runes[i]);
+    final hue = (i / runes.length) * 360;
+    final isPadSpace = char == ' ' && (i < firstNonSpace || i > lastNonSpace);
+    final useGrey = _isWideChar(runes[i]) || isPadSpace;
+    final bg = useGrey ? char.onDarkGrey : char.onBlack;
+    buffer.write(bg.hsl(hue, 1, 0.5));
+  }
+  print(pad);
+  print(buffer.toString());
+  print(pad);
+}
+
+/// Returns true if a Unicode code point is likely displayed as a wide (2-column) character
+/// in the terminal, such as emojis and CJK characters.
+bool _isWideChar(int rune) {
+  return rune > 0x1F000 || // Emojis (Supplementary Symbols, Emoticons, etc.)
+      (rune >= 0x2600 && rune <= 0x27BF) || // Misc symbols, Dingbats
+      (rune >= 0x2B50 && rune <= 0x2B55) || // Stars, circles
+      (rune >= 0xFE00 && rune <= 0xFE0F) || // Variation selectors
+      (rune >= 0x2702 && rune <= 0x27B0) || // Dingbats
+      (rune >= 0x3000 && rune <= 0x9FFF) || // CJK
+      (rune >= 0xF900 && rune <= 0xFAFF); // CJK Compatibility
+}
+
 class FileUtils {
   static void replaceInFile(String path, oldPackage, newPackage) async {
     String? contents = readFileAsString(path);

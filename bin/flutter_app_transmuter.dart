@@ -12,6 +12,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:chalkdart/chalkstrings.dart';
 import 'package:args/args.dart';
@@ -19,8 +20,10 @@ import 'package:glob/glob.dart';
 import 'package:glob/list_local_fs.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
+import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 
 enum Options {
+  transmute('transmute'),
   dryrun('dryrun'),
   verbose('verbose'),
   usage('usage'),
@@ -30,6 +33,9 @@ enum Options {
   copy('copy'),
   diff('diff'),
   update('update'),
+  status('status'),
+  check('check'),
+  verify('verify'),
   yes('yes');
 
   const Options(this.name);
@@ -84,18 +90,51 @@ String rootDir = './bin';
 void main(List<String> args) async {
   final parser = ArgParser()
     ..addFlag(
-      Options.usage.name,
+      Options.status.name,
       defaultsTo: false,
       negatable: false,
-      help:
-          'Prints help on how to use the command. The same as --${Options.usage.name}.',
+      help: 'Diff brand files and check transmute values against project files',
     )
     ..addFlag(
-      Options.help.name,
+      Options.check.name,
       defaultsTo: false,
       negatable: false,
-      help:
-          'Prints help on how to use the command. The same as --${Options.help.name}.',
+      help: 'Check that project files match transmute.json values (no files changed)',
+    )
+    ..addFlag(
+      Options.verify.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Check transmute values and interactively resolve mismatches',
+    )
+    ..addFlag(
+      Options.transmute.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Run transmute operations using transmute.json (and optional transmute_operations.yaml)',
+    )
+    ..addOption(
+      Options.copy.name,
+      help: 'Copy brand files from <brand_dir> into the project using master_transmute.yaml',
+      valueHelp: 'brand_dir',
+    )
+    ..addOption(
+      Options.diff.name,
+      help: 'Diff brand files against project files (uses brand_source_directory from transmute.json if no dir given)',
+      valueHelp: 'brand_dir',
+      defaultsTo: '',
+    )
+    ..addOption(
+      Options.update.name,
+      help: 'Diff and interactively update brand files from changed project files (uses brand_source_directory from transmute.json if no dir given)',
+      valueHelp: 'brand_dir',
+      defaultsTo: '',
+    )
+    ..addFlag(
+      Options.yes.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-confirm all prompts (use with --update to skip interactive questions)',
     )
     ..addFlag(
       Options.dryrun.name,
@@ -115,26 +154,19 @@ void main(List<String> args) async {
       defaultsTo: '0',
       help: 'Verbose Debug Level (>1 sets --debug mode)',
     )
-    ..addOption(
-      Options.copy.name,
-      help: 'Copy brand files from <brand_dir> into the project using master_transmute.yaml',
-      valueHelp: 'brand_dir',
-    )
-    ..addOption(
-      Options.diff.name,
-      help: 'Diff brand files in <brand_dir> against project files using master_transmute.yaml',
-      valueHelp: 'brand_dir',
-    )
-    ..addOption(
-      Options.update.name,
-      help: 'Diff and interactively update brand files in <brand_dir> from changed project files',
-      valueHelp: 'brand_dir',
-    )
     ..addFlag(
-      Options.yes.name,
+      Options.help.name,
       defaultsTo: false,
       negatable: false,
-      help: 'Auto-confirm all prompts (use with --update to skip interactive questions)',
+      help:
+          'Prints help on how to use the command. The same as --${Options.usage.name}.',
+    )
+    ..addFlag(
+      Options.usage.name,
+      defaultsTo: false,
+      negatable: false,
+      help:
+          'Prints help on how to use the command. The same as --${Options.help.name}.',
     )
 //UNUSED FLAGFS//    ..addFlag(
 //UNUSED FLAGFS//      Options.global.name,
@@ -158,11 +190,15 @@ void main(List<String> args) async {
 //UNUSED FLAGFS//    )
     ;
 
+  // Preprocess args: allow --diff and --update to be used without a value
+  // by inserting an empty value when no argument follows
+  final processedArgs = _preprocessOptionalValueArgs(args, ['--diff', '--update']);
+
   late final ArgResults parsedArgs;
   int verboseDebugLevel = 0;
 
   try {
-    parsedArgs = parser.parse(args);
+    parsedArgs = parser.parse(processedArgs);
   } on FormatException catch (e) {
     print(e.message);
     print(parser.usage);
@@ -204,39 +240,110 @@ void main(List<String> args) async {
   //NOTUSED//  installMaterialSymbolsIconsFonts();
   //NOTUSED//}
 
+  final bool doTransmute = parsedArgs[Options.transmute.name] == true;
+  final bool doStatus = parsedArgs[Options.status.name] == true;
+  final bool doCheck = parsedArgs[Options.check.name] == true;
+  final bool doVerify = parsedArgs[Options.verify.name] == true;
   final String? copyDir = parsedArgs[Options.copy.name];
-  final String? diffDir = parsedArgs[Options.diff.name];
-  final String? updateDir = parsedArgs[Options.update.name];
+  final bool doDiff = parsedArgs.wasParsed(Options.diff.name);
+  final String diffDirArg = parsedArgs[Options.diff.name] as String;
+  final bool doUpdate = parsedArgs.wasParsed(Options.update.name);
+  final String updateDirArg = parsedArgs[Options.update.name] as String;
 
-  final int brandOpCount = (copyDir != null ? 1 : 0) + (diffDir != null ? 1 : 0) + (updateDir != null ? 1 : 0);
-  if (brandOpCount > 1) {
-    print('Error: --copy, --diff, and --update are mutually exclusive.'.brightRed);
+  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0);
+  if (opCount > 1) {
+    print('Error: --status, --check, --verify, --transmute, --copy, --diff, and --update are mutually exclusive.'.brightRed);
     print(parser.usage);
     return;
   }
 
-  if (copyDir != null) {
+  if (opCount == 0) {
+    print('Flutter App Transmuter - No operation specified.\n'.brightYellow);
+    print(parser.usage);
+    return;
+  }
+
+  if (doTransmute) {
+    FlutterAppTransmuter.run(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel);
+  } else if (doStatus) {
+    FlutterAppTransmuter.statusBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel);
+  } else if (doCheck) {
+    FlutterAppTransmuter.checkTransmute(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel);
+  } else if (doVerify) {
+    FlutterAppTransmuter.verifyTransmute(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel);
+  } else if (copyDir != null) {
     if (!Directory(copyDir).existsSync()) {
       print('Error: Brand directory "$copyDir" does not exist.'.brightRed);
       return;
     }
     FlutterAppTransmuter.copyBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: copyDir);
-  } else if (diffDir != null) {
-    if (!Directory(diffDir).existsSync()) {
-      print('Error: Brand directory "$diffDir" does not exist.'.brightRed);
-      return;
-    }
+  } else if (doDiff) {
+    final diffDir = _resolveBrandDir(diffDirArg);
+    if (diffDir == null) return;
     FlutterAppTransmuter.diffBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: diffDir);
-  } else if (updateDir != null) {
-    if (!Directory(updateDir).existsSync()) {
-      print('Error: Brand directory "$updateDir" does not exist.'.brightRed);
-      return;
-    }
+  } else if (doUpdate) {
+    final updateDir = _resolveBrandDir(updateDirArg);
+    if (updateDir == null) return;
     final bool autoConfirm = parsedArgs[Options.yes.name] == true;
     FlutterAppTransmuter.updateBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: updateDir, autoConfirm: autoConfirm);
-  } else {
-    FlutterAppTransmuter.run(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, args: args);
   }
+}
+
+/// Allows certain options to be used as bare flags (no value).
+/// If --flag appears without a following value, inserts --flag= so the
+/// parser sees it as an option with an empty string value.
+List<String> _preprocessOptionalValueArgs(List<String> args, List<String> optionNames) {
+  final result = <String>[];
+  for (int i = 0; i < args.length; i++) {
+    final arg = args[i];
+    if (optionNames.contains(arg) && !arg.contains('=')) {
+      // Check if next arg is a value (not a flag)
+      if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+        result.add(arg);
+      } else {
+        result.add('$arg=');
+      }
+    } else {
+      result.add(arg);
+    }
+  }
+  return result;
+}
+
+/// Resolves the brand directory from the command-line argument or from
+/// the brand_source_directory key in transmute.json. Returns null on error.
+String? _resolveBrandDir(String argValue) {
+  String brandDir = argValue;
+
+  if (brandDir.isEmpty) {
+    // Try to read from transmute.json
+    final transmuteFile = File(Constants.transmuteDefintionFile);
+    if (!transmuteFile.existsSync()) {
+      print('Error: No brand directory specified and ${Constants.transmuteDefintionFile} not found.'.brightRed);
+      return null;
+    }
+    try {
+      final data = jsonDecode(transmuteFile.readAsStringSync()) as Map<String, dynamic>;
+      final saved = data[Constants.brandSourceDirectoryKey];
+      if (saved == null || saved is! String || saved.isEmpty) {
+        print('Error: No brand directory specified and no "${Constants.brandSourceDirectoryKey}" key found in ${Constants.transmuteDefintionFile}.'.brightRed);
+        print('Use --copy first to set it, or provide a directory: --diff=<brand_dir>'.brightYellow);
+        return null;
+      }
+      brandDir = saved;
+      print('Using brand directory from ${Constants.transmuteDefintionFile}: ${brandDir.brightCyan}'.brightGreen);
+    } catch (ex) {
+      print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
+      return null;
+    }
+  }
+
+  if (!Directory(brandDir).existsSync()) {
+    print('Error: Brand directory "$brandDir" does not exist.'.brightRed);
+    return null;
+  }
+
+  return brandDir;
 }
 
 /*

@@ -91,6 +91,32 @@ class BrandFileOperations {
 
     print('');
     print('Brand file copy complete: $copied copied, $skipped skipped, $errors errors.'.brightGreen);
+
+    // Inject brand_source_directory into the local transmute.json
+    _injectBrandSourceDirectory(brandDir);
+  }
+
+  static void _injectBrandSourceDirectory(String brandDir) {
+    final transmuteJsonPath = Constants.transmuteDefintionFile;
+    if (!FileUtils.fileExists(transmuteJsonPath)) {
+      return;
+    }
+
+    try {
+      final contents = FileUtils.readFileAsString(transmuteJsonPath);
+      if (contents == null) return;
+
+      final data = jsonDecode(contents) as Map<String, dynamic>;
+      final relativeBrandDir = path.relative(brandDir);
+      data[Constants.brandSourceDirectoryKey] = relativeBrandDir;
+
+      final encoder = JsonEncoder.withIndent('  ');
+      final updatedJson = encoder.convert(data);
+      FileUtils.writeStringToFilename(transmuteJsonPath, '$updatedJson\n');
+      print('Set ${Constants.brandSourceDirectoryKey} to "${relativeBrandDir.brightCyan}" in $transmuteJsonPath'.brightGreen);
+    } catch (ex) {
+      print('Warning: Could not inject ${Constants.brandSourceDirectoryKey} into $transmuteJsonPath: $ex'.brightYellow);
+    }
   }
 
   static void diffBrandFiles(String brandDir) {

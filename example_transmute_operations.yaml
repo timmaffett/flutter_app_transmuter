@@ -1,0 +1,54 @@
+# Example transmute_operations.yaml
+#
+# Place this file (named transmute_operations.yaml) in your Flutter project root
+# alongside transmute.json to customize transmute operations.
+#
+# The built-in default operations ALWAYS load first. This file can:
+#   - OVERRIDE a default operation: use the same 'id' with new field values
+#   - DISABLE a default operation: use the same 'id' with 'disabled: true'
+#   - EXTEND with new operations: use a new 'id' (appended after defaults)
+#
+# Operation types:
+#   regex_replace        - replaceAllMapped(regex, replacement) on the file
+#   extract_and_replace  - extract old value via regex group(1), then replaceAll(old, new)
+#   move_activity        - delegates to AndroidTransmuter.updateMainActivity()
+#
+# Fields:
+#   id          (required) - unique identifier for merge/override matching
+#   description (required) - human-readable label printed during execution
+#   type        (required) - regex_replace, extract_and_replace, or move_activity
+#   platform    (required) - android, ios, or both (affects log color)
+#   file        (required for regex/extract types) - path to the target file
+#   json_key    (required) - the transmute.json key that provides the value
+#   fallback_key          - fallback transmute.json key if json_key is missing
+#   regex                 - regular expression pattern
+#   multiline             - RegExp multiLine flag (default: false)
+#   replacement           - template string; $value is substituted with the JSON value
+#   optional              - if true, skip silently when file doesn't exist (default: false)
+#   disabled              - if true, removes a default operation during merge (default: false)
+
+operations:
+  # --- Example: Override the namespace regex for build.gradle.kts ---
+  # - id: build_gradle_kts_namespace
+  #   description: "custom namespace in build.gradle.kts"
+  #   type: regex_replace
+  #   platform: android
+  #   file: "android/app/build.gradle.kts"
+  #   optional: true
+  #   json_key: packageName
+  #   regex: 'namespace\s*=\s*"(.*)"'
+  #   replacement: 'namespace = "$value"'
+
+  # --- Example: Disable the profile manifest update ---
+  # - id: profile_manifest_package
+  #   disabled: true
+
+  # --- Example: Add a new custom operation ---
+  # - id: custom_splash_config
+  #   description: "splash screen config"
+  #   type: regex_replace
+  #   platform: both
+  #   file: "lib/config/splash.dart"
+  #   json_key: appName
+  #   regex: 'appTitle\s*=\s*"(.*)"'
+  #   replacement: 'appTitle = "$value"'
