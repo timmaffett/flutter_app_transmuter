@@ -7,6 +7,7 @@ enum TransmuterKeys {
 
   androidGoogleMapsSDKApi('androidGoogleMapsSDKApiKey'),
   iosGoogleMapsSDKApi('iosGoogleMapsSDKApiKey'),
+  pubspecVersion('pubspec_version'),
   unknownKey('unknownValue');
  
   const TransmuterKeys(this.jsonValue);
@@ -54,7 +55,9 @@ class RegExConstants {
   static final bundleDisplayNameInInfoPList = RegExp(r'INFOPLIST_KEY_CFBundleDisplayName\s*=?\s*(.*);',
         caseSensitive: true, multiLine: false);
   static final gmsServicesProvideApiKeyInInfoPList = RegExp(r'GMSServices\.provideAPIKey\("([^"]+)"\)',
-        caseSensitive: true, multiLine: true);           
+        caseSensitive: true, multiLine: true);
+  static final versionInPubspecYaml = RegExp(r'^version:\s*(.+)$',
+        caseSensitive: true, multiLine: true);
 }
 
 class Constants {
@@ -62,6 +65,8 @@ class Constants {
 
 
   static const String transmuteDefintionFile = 'transmute.json';
+  static const String masterTransmuteFile = 'master_transmute.yaml';
+  static const String pubspecYamlFile = 'pubspec.yaml';
 
   /// iOS Specific
   static const String iOSProjectPbxprojFile = 'ios/Runner.xcodeproj/project.pbxproj';

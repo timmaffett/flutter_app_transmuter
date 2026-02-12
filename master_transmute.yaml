@@ -1,0 +1,47 @@
+# master_transmute.yaml
+# Brand file mappings for flutter_app_transmuter --copy and --diff and --update operations.
+# Brand directory is passed as a CLI argument (--copy <brand_dir> or --diff <brand_dir> or --update <brand_dir>).
+# The brand directory is A FLATTENED directory containing all the files to be copied to the project.
+
+# Section 1: file_mappings - files where the source filename in the brand dir
+# differs from the destination filename in the project.
+# Use 'destination' for a single target, or 'destinations' (list) for multiple targets.
+file_mappings:
+  - source: appicon_square_1024x1024.png
+    destinations:
+      - android/app/src/main/res/mipmap-hdpi/ic_launcher_background.png
+      - android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+      - android/app/src/main/res/mipmap-mdpi/ic_launcher_background.png
+      - android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+      - android/app/src/main/res/mipmap-xhdpi/ic_launcher_background.png
+      - android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+      - android/app/src/main/res/mipmap-xxhdpi/ic_launcher_background.png
+      - android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+      - android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png
+      - android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+
+# Section 2: files - files where the source filename in the brand dir matches
+# the basename of the destination path in the project.
+files:
+  - android/app/google-services.json
+  - ios/Runner/GoogleService-Info.plist
+  - assets/images/brand/logo_square.png
+  - assets/images/brand/logo_wide.png
+  - assets/images/brand/logo_wide_homepage.png
+  - assets/images/brand/logo_wide_light_background.png
+  - assets/images/brand/logo_square_darkmode.png
+  - assets/images/brand/logo_wide_darkmode.png
+  - assets/images/brand/appicon_round_1024x1024.png
+  - assets/images/brand/appicon_square_1024x1024.png
+  - assets/json/dark_google_map_style.json
+  - assets/json/light_google_map_style.json
+  - android/app/src/main/res/drawable/android_notification_icon.png
+  - transmute.json
+  - firebase.json
+  - .firebaserc
+  - lib/client/config.dart
+  - lib/client/multi_location_client.dart
+  - lib/app_colors.dart
+  - lib/theme.dart
+  - lib/firebase_options.dart
+  - shorebird.yaml

@@ -82,4 +82,40 @@ class FileUtils {
     final File rebrandFile = File(filePath);
     return rebrandFile.existsSync();
   }
+
+  static bool fileExists(String path) {
+    return File(path).existsSync();
+  }
+
+  static void copyFile(String sourcePath, String destPath) {
+    if (FlutterAppTransmuter.executingDryRun) {
+      print('..dry run - skipping copy $sourcePath -> $destPath'.brightYellow);
+      return;
+    }
+    final destFile = File(destPath);
+    final destDir = destFile.parent;
+    if (!destDir.existsSync()) {
+      destDir.createSync(recursive: true);
+    }
+    File(sourcePath).copySync(destPath);
+  }
+
+  static bool compareFiles(String pathA, String pathB) {
+    final fileA = File(pathA);
+    final fileB = File(pathB);
+    if (!fileA.existsSync() || !fileB.existsSync()) {
+      return false;
+    }
+    final bytesA = fileA.readAsBytesSync();
+    final bytesB = fileB.readAsBytesSync();
+    if (bytesA.length != bytesB.length) {
+      return false;
+    }
+    for (int i = 0; i < bytesA.length; i++) {
+      if (bytesA[i] != bytesB[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

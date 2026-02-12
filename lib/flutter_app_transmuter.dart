@@ -7,6 +7,7 @@ import '/src/transmute/android_transmute.dart';
 import '/src/transmute/ios_transmute.dart';
 import '/src/transmute/constants.dart';
 import '/src/transmute/file_utils.dart';
+import '/src/transmute/brand_file_operations.dart';
 
 /// [FlutterAppTransmuter]
 class FlutterAppTransmuter {
@@ -71,9 +72,33 @@ class FlutterAppTransmuter {
       if(iosGoogleMapsSDKApi!=null && iosGoogleMapsSDKApi.isNotEmpty) {
         IOSTransmute.updateGoogleMapsSDKApiKey(iosGoogleMapsSDKApi);
       }
+
+      final String? pubspecVersion = data[TransmuterKeys.pubspecVersion.key];
+      if(pubspecVersion!=null && pubspecVersion.isNotEmpty) {
+        FileUtils.replaceInFileRegex('pubspec version', Constants.pubspecYamlFile,
+            RegExConstants.versionInPubspecYaml, 'version: $pubspecVersion');
+      }
     } catch (ex,stackTrace) {
       print('Error reading or parsing JSON: $ex'.brightRed);
       print(stackTrace);
     }
+  }
+
+  static void copyBrand({required bool executeDryRun, required int verboseDebugLevel, required String brandDir}) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+    BrandFileOperations.copyBrandFiles(brandDir);
+  }
+
+  static void diffBrand({required bool executeDryRun, required int verboseDebugLevel, required String brandDir}) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+    BrandFileOperations.diffBrandFiles(brandDir);
+  }
+
+  static void updateBrand({required bool executeDryRun, required int verboseDebugLevel, required String brandDir, bool autoConfirm = false}) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+    BrandFileOperations.updateBrandFiles(brandDir, autoConfirm: autoConfirm);
   }
 }

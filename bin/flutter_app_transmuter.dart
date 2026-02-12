@@ -26,7 +26,11 @@ enum Options {
   usage('usage'),
   help('help'),
   //OBSOLETE//path('path')
-  debug('debug');
+  debug('debug'),
+  copy('copy'),
+  diff('diff'),
+  update('update'),
+  yes('yes');
 
   const Options(this.name);
 
@@ -111,6 +115,27 @@ void main(List<String> args) async {
       defaultsTo: '0',
       help: 'Verbose Debug Level (>1 sets --debug mode)',
     )
+    ..addOption(
+      Options.copy.name,
+      help: 'Copy brand files from <brand_dir> into the project using master_transmute.yaml',
+      valueHelp: 'brand_dir',
+    )
+    ..addOption(
+      Options.diff.name,
+      help: 'Diff brand files in <brand_dir> against project files using master_transmute.yaml',
+      valueHelp: 'brand_dir',
+    )
+    ..addOption(
+      Options.update.name,
+      help: 'Diff and interactively update brand files in <brand_dir> from changed project files',
+      valueHelp: 'brand_dir',
+    )
+    ..addFlag(
+      Options.yes.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-confirm all prompts (use with --update to skip interactive questions)',
+    )
 //UNUSED FLAGFS//    ..addFlag(
 //UNUSED FLAGFS//      Options.global.name,
 //UNUSED FLAGFS//      defaultsTo: false,
@@ -179,7 +204,39 @@ void main(List<String> args) async {
   //NOTUSED//  installMaterialSymbolsIconsFonts();
   //NOTUSED//}
 
-  FlutterAppTransmuter.run(executeDryRun:executeDryRun, verboseDebugLevel: verboseDebugLevel, args:args ); 
+  final String? copyDir = parsedArgs[Options.copy.name];
+  final String? diffDir = parsedArgs[Options.diff.name];
+  final String? updateDir = parsedArgs[Options.update.name];
+
+  final int brandOpCount = (copyDir != null ? 1 : 0) + (diffDir != null ? 1 : 0) + (updateDir != null ? 1 : 0);
+  if (brandOpCount > 1) {
+    print('Error: --copy, --diff, and --update are mutually exclusive.'.brightRed);
+    print(parser.usage);
+    return;
+  }
+
+  if (copyDir != null) {
+    if (!Directory(copyDir).existsSync()) {
+      print('Error: Brand directory "$copyDir" does not exist.'.brightRed);
+      return;
+    }
+    FlutterAppTransmuter.copyBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: copyDir);
+  } else if (diffDir != null) {
+    if (!Directory(diffDir).existsSync()) {
+      print('Error: Brand directory "$diffDir" does not exist.'.brightRed);
+      return;
+    }
+    FlutterAppTransmuter.diffBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: diffDir);
+  } else if (updateDir != null) {
+    if (!Directory(updateDir).existsSync()) {
+      print('Error: Brand directory "$updateDir" does not exist.'.brightRed);
+      return;
+    }
+    final bool autoConfirm = parsedArgs[Options.yes.name] == true;
+    FlutterAppTransmuter.updateBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: updateDir, autoConfirm: autoConfirm);
+  } else {
+    FlutterAppTransmuter.run(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, args: args);
+  }
 }
 
 /*

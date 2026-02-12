@@ -1,5 +1,5 @@
-import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
+import 'flutter_app_transmuter.dart' as cli;
 
 void main(List<String> arguments) {
-  FlutterAppTransmuter.run(executeDryRun:false, verboseDebugLevel: 0, args:arguments);
+  cli.main(arguments);
 }
