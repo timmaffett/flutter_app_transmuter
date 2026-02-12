@@ -21,6 +21,7 @@ import 'package:glob/list_local_fs.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';
+import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 
 enum Options {
   transmute('transmute'),
@@ -33,6 +34,7 @@ enum Options {
   copy('copy'),
   diff('diff'),
   update('update'),
+  switchBrand('switch'),
   status('status'),
   check('check'),
   verify('verify'),
@@ -129,6 +131,11 @@ void main(List<String> args) async {
       help: 'Diff and interactively update brand files from changed project files (uses brand_source_directory from transmute.json if no dir given)',
       valueHelp: 'brand_dir',
       defaultsTo: '',
+    )
+    ..addOption(
+      Options.switchBrand.name,
+      help: 'Update current brand files from project, then switch to <new_brand_dir> (requires brand_source_directory in transmute.json)',
+      valueHelp: 'new_brand_dir',
     )
     ..addFlag(
       Options.yes.name,
@@ -249,10 +256,11 @@ void main(List<String> args) async {
   final String diffDirArg = parsedArgs[Options.diff.name] as String;
   final bool doUpdate = parsedArgs.wasParsed(Options.update.name);
   final String updateDirArg = parsedArgs[Options.update.name] as String;
+  final String? switchDir = parsedArgs[Options.switchBrand.name];
 
-  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0);
+  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0) + (switchDir != null ? 1 : 0);
   if (opCount > 1) {
-    print('Error: --status, --check, --verify, --transmute, --copy, --diff, and --update are mutually exclusive.'.brightRed);
+    print('Error: --status, --check, --verify, --transmute, --copy, --diff, --update, and --switch are mutually exclusive.'.brightRed);
     print(parser.usage);
     return;
   }
@@ -261,6 +269,21 @@ void main(List<String> args) async {
     print('Flutter App Transmuter - No operation specified.\n'.brightYellow);
     print(parser.usage);
     return;
+  }
+
+  // Print brand banner at the very start of any operation
+  final transmuteFile = File(Constants.transmuteDefintionFile);
+  if (transmuteFile.existsSync()) {
+    try {
+      final data = jsonDecode(transmuteFile.readAsStringSync()) as Map<String, dynamic>;
+      final brandName = data[Constants.brandNameKey];
+      if (brandName != null && brandName is String && brandName.isNotEmpty) {
+        printRainbow('  \u{1FA84}\u{2728} Operating on ${Constants.transmuteDefintionFile} for $brandName \u{1F680}\u{1F4AB}  ');
+        print('');
+      }
+    } catch (_) {
+      // Ignore errors reading transmute.json for the banner
+    }
   }
 
   if (doTransmute) {
@@ -286,6 +309,13 @@ void main(List<String> args) async {
     if (updateDir == null) return;
     final bool autoConfirm = parsedArgs[Options.yes.name] == true;
     FlutterAppTransmuter.updateBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, brandDir: updateDir, autoConfirm: autoConfirm);
+  } else if (switchDir != null) {
+    if (!Directory(switchDir).existsSync()) {
+      print('Error: New brand directory "$switchDir" does not exist.'.brightRed);
+      return;
+    }
+    final bool autoConfirm = parsedArgs[Options.yes.name] == true;
+    FlutterAppTransmuter.switchBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, newBrandDir: switchDir, autoConfirm: autoConfirm);
   }
 }
 
@@ -336,6 +366,9 @@ String? _resolveBrandDir(String argValue) {
       print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
       return null;
     }
+  } else {
+    // Brand dir was explicitly provided — check against brand_source_directory in transmute.json
+    if (!_checkBrandDirConsistency(brandDir)) return null;
   }
 
   if (!Directory(brandDir).existsSync()) {
@@ -344,6 +377,45 @@ String? _resolveBrandDir(String argValue) {
   }
 
   return brandDir;
+}
+
+/// Checks if the command-line brand directory matches the brand_source_directory
+/// in transmute.json. Returns false if the user chooses not to continue on mismatch.
+bool _checkBrandDirConsistency(String cmdBrandDir) {
+  final transmuteFile = File(Constants.transmuteDefintionFile);
+  if (!transmuteFile.existsSync()) return true;
+
+  try {
+    final data = jsonDecode(transmuteFile.readAsStringSync()) as Map<String, dynamic>;
+    final saved = data[Constants.brandSourceDirectoryKey];
+
+    if (saved == null || saved is! String || saved.isEmpty) {
+      print('Warning: No "${Constants.brandSourceDirectoryKey}" key found in ${Constants.transmuteDefintionFile}.'.brightYellow);
+      return true;
+    }
+
+    // Normalize paths for comparison
+    final normalizedCmd = path.normalize(cmdBrandDir);
+    final normalizedSaved = path.normalize(saved);
+
+    if (normalizedCmd == normalizedSaved) {
+      print('Brand directory matches ${Constants.brandSourceDirectoryKey} in ${Constants.transmuteDefintionFile}.'.brightGreen);
+    } else {
+      print('Mismatch: command-line brand directory does not match ${Constants.brandSourceDirectoryKey} in ${Constants.transmuteDefintionFile}.'.brightRed);
+      print('  command-line: ${cmdBrandDir.brightCyan}'.brightRed);
+      print('  transmute.json: ${saved.toString().brightCyan}'.brightRed);
+      stdout.write('Continue anyway? (y/N): '.brightYellow);
+      final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+      if (response != 'y' && response != 'yes') {
+        print('Aborted.'.brightYellow);
+        return false;
+      }
+    }
+  } catch (_) {
+    // Ignore errors reading transmute.json for this check
+  }
+
+  return true;
 }
 
 /*

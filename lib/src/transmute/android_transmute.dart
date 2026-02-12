@@ -20,6 +20,7 @@ class AndroidTransmuter {
   //UNUSWED//static final Directory resDirectory =
   //UNUSWED//    Directory(Constants.androidDrawableResFolder);
 
+/* OBSOLETE UNUSED
   static void processBuildGradleFile(String newPackageName) {
     final gradleFile = File(Constants.androidAppBuildGradleFile);
      if (!gradleFile.existsSync()) {
@@ -44,7 +45,7 @@ class AndroidTransmuter {
       final String replacement = 'applicationId = "$newPackageName"';
       if(FlutterAppTransmuter.verboseDebug>0) {
         print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}');
-      }   
+      }
       occurrences++;
       return replacement;
     });
@@ -86,7 +87,7 @@ class AndroidTransmuter {
         final String replacement = 'namespace = "$newPackageName"';
         if(FlutterAppTransmuter.verboseDebug>0) {
           print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}');
-        }   
+        }
         occurrences++;
         return replacement;
       });
@@ -109,7 +110,7 @@ class AndroidTransmuter {
       final String replacement = 'applicationId = "$newPackageName"';
       if(FlutterAppTransmuter.verboseDebug>0) {
         print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}');
-      }   
+      }
       occurrences++;
       return replacement;
     });
@@ -147,6 +148,7 @@ class AndroidTransmuter {
     updateMainActivity(newPackageName);
     print(androidColor('Finished updating android package name'));
   }
+OBSOLETE UNUSED */
 
   static void updateMainActivity(String newPackageName) {
     var path = findMainActivity(type: 'java');
@@ -243,6 +245,7 @@ class AndroidTransmuter {
     return dir.listSync(recursive: true);
   }
 
+/* OBSOLETE UNUSED
   /// Updates App Label
   static void updateAppName(String newAndroidLabelName) {
     final File androidManifestFile = File(Constants.androidManifestXmlFile);
@@ -283,7 +286,7 @@ class AndroidTransmuter {
 
 
  static void updateGoogleMapsSDKApiKey(String googleMapsSDKApiKey) async {
-  
+
     print('Reading from ${Constants.androidManifestXmlFile}');
 
    // String manifestFullPath = path.absolute(Constants.androidManifest);
@@ -307,7 +310,7 @@ class AndroidTransmuter {
 
 
     String contents = manifestFile.readAsStringSync();
-     
+
     //print('Contents are = "${contents.orangeRed}"');
 
     var match = RegExConstants.androidGoogleMapsAPIKey.firstMatch(contents);
@@ -332,7 +335,7 @@ class AndroidTransmuter {
         print('updateGoogleMapsSDKApiKey() matched ${match.group(0)!.brightGreen}');
         print('   replacing with ${newKeyLine.brightCyan}');
       }
-      occurrences++;      
+      occurrences++;
       return newKeyLine;
     });
     print(androidColor('Replaced $occurrences occurrence${(occurrences==0 || occurrences>1) ? 's':''} of android:name="com.google.android.geo.API_KEY": ${previousGoogleMapAPIKey.blue} with ${googleMapsSDKApiKey.green}'.lime));
@@ -340,5 +343,6 @@ class AndroidTransmuter {
     FileUtils.writeAsStringSync(manifestFile,contents);
     print(androidColor('Updated Google API Key in AndroidManifest.xml File'));
   }
+OBSOLETE UNUSED */
 
 }

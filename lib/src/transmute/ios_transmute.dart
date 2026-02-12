@@ -10,6 +10,7 @@ import 'package:chalkdart/chalkstrings.dart';
 class IOSTransmute {
   static final Chalk iosColor = Chalk().cyan;
 
+/* OBSOLETE UNUSED
   static void process(String newPackageName) {
     print(iosColor('Running for ios'));
     if (!File(Constants.iOSProjectPbxprojFile).existsSync()) {
@@ -20,8 +21,6 @@ class IOSTransmute {
     }
     String? contents = FileUtils.readFileAsString(Constants.iOSProjectPbxprojFile);
 
-    //OBSOLETE//var reg = RegExp(r'PRODUCT_BUNDLE_IDENTIFIER\s*=?\s*(.*);',
-    //OBSOLETE//    caseSensitive: true, multiLine: false);
     var match = RegExConstants.bundleIdentifierInProjectPbxproj.firstMatch(contents!);
     if (match == null) {
       print('ERROR:: Bundle Identifier not found in project.pbxproj file, '
@@ -34,12 +33,7 @@ class IOSTransmute {
 
     print(iosColor('Old Package Name: $oldPackageName'));
 
-// KLUDGE FIX THIS
-
     print(iosColor('Updating project.pbxproj File'));
-
-    //WE WANT THE MORE GENERAL BELOW BECAUSE OF XXYZ.RunnerTests, etc. //var replacement = 'PRODUCT_BUNDLE_IDENTIFIER = $newPackageName';
-    //WE WANT THE MORE GENERAL BELOW BECAUSE OF XXYZ.RunnerTests, etc. //FileUtils.replaceInFileRegex('`PRODUCT_BUNDLE_IDENTIFIER=` in $Constants.iOSProjectPbxprojFile', Constants.iOSProjectPbxprojFile, RegExConstants.bundleIdentifierInProjectPbxproj, replacement);
 
     _replace(Constants.iOSProjectPbxprojFile, newPackageName, oldPackageName);
 
@@ -53,7 +47,6 @@ class IOSTransmute {
 
   /// Updates CFBundleName
   static void overwriteInfoPlist(String name) {
-    // Read the file as a string
     final File file = File(Constants.iOSInfoPlistFile);
     if (!file.existsSync()) {
       print('File "${Constants.iOSInfoPlistFile}" does not exist'.brightRed);
@@ -62,32 +55,22 @@ class IOSTransmute {
 
     String contents = file.readAsStringSync();
 
-    // Find the key and replace the corresponding value
     const String keyToUpdate = 'CFBundleDisplayName';
     final String newValue = name;
 
     final RegExp keyRegEx = RegExp('<key>$keyToUpdate</key>\\s*<string>(.*?)</string>');
-
-    //OBSOLETE//// Example: Search for the key and its value and replace the value
-    //OBSOLETE//contents = contents.replaceAllMapped(
-    //OBSOLETE//  RegExp('<key>$keyToUpdate</key>\\s*<string>(.*?)</string>'),
-    //OBSOLETE//  (match) => '<key>$keyToUpdate</key>\n\t<string>$newValue</string>',
-    //OBSOLETE//);
 
     int occurrences=0;
     contents = contents.replaceAllMapped(keyRegEx, (match) {
       final String replacement = '<key>$keyToUpdate</key>\n\t<string>$newValue</string>';
       if(FlutterAppTransmuter.verboseDebug>0) {
         print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}'.lime);
-      }   
+      }
       occurrences++;
       return replacement;
     });
     print(iosColor('Replaced $occurrences occurrence${(occurrences==0 || occurrences>1) ? 's':''} of ${keyToUpdate.green}'.lime));
 
-
-
-    // Write the updated content back to the file
     FileUtils.writeAsStringSync(file,contents);
     print(iosColor('${Constants.iOSInfoPlistFile.brightBlue} file updated successfully.'));
 
@@ -105,8 +88,6 @@ class IOSTransmute {
     String? contents =
     FileUtils.readFileAsString(Constants.iOSProjectPbxprojFile);
 
-    //OBSOLETE//var reg = RegExp(r'INFOPLIST_KEY_CFBundleDisplayName\s*=?\s*(.*);',
-    //OBSOLETE//    caseSensitive: true, multiLine: false);
     var match = RegExConstants.bundleDisplayNameInInfoPList.firstMatch(contents!);
     if (match != null) {
       var name = match.group(1);
@@ -115,12 +96,8 @@ class IOSTransmute {
       print(iosColor('Match ${match.group(0)} Found Old Display Name: $oldDisplayName'));
 
       print(iosColor('Updating project.pbxproj File'));
-      
-      //WE WANT THE MORE GENERAL BELOW//var replacement = 'INFOPLIST_KEY_CFBundleDisplayName = \"$newAppName\"';
-      //WE WANT THE MORE GENERAL BELOW//FileUtils.replaceInFileRegex('`INFOPLIST_KEY_CFBundleDisplayName=` in $Constants.iOSProjectPbxprojFile', Constants.iOSProjectPbxprojFile, RegExConstants.bundleDisplayNameInInfoPList, replacement);
 
       _replace(Constants.iOSProjectPbxprojFile, '\"$newAppName\"', oldDisplayName);
-
 
       print(iosColor('Finished updating CFBundleDisplayName'));
     } else {
@@ -140,8 +117,6 @@ class IOSTransmute {
     }
     String? contents = manifestFile.readAsStringSync();
 
-    //OBSOLETE//final regex = RegExp(r'GMSServices\.provideAPIKey\("([^"]+)"\)',
-    //OBSOLETE//    caseSensitive: true, multiLine: true);
     var match = RegExConstants.gmsServicesProvideApiKeyInInfoPList.firstMatch(contents);
     if (match == null) {
       print('ERROR:: GMSServices.provideAPIKey() call not found in AppDelegate.swift file.\n  Transmuter requires the ${'GMSServices.provideAPIKey("...")'.green}\n  line to already be present within the file.'.brightRed);
@@ -157,16 +132,12 @@ class IOSTransmute {
 
     print(iosColor('Previous iosGoogleMapAPIKey: $previousGoogleMapAPIKey  changing it to $googleMapsSDKApiKey'));
 
-    //OBSOLETE//contents = contents.replaceAllMapped(regex, (match) {
-    //OBSOLETE//  return 'GMSServices.provideAPIKey("$googleMapsSDKApiKey")';
-    //OBSOLETE//});
-
     int occurrences=0;
     contents = contents.replaceAllMapped(RegExConstants.gmsServicesProvideApiKeyInInfoPList, (match) {
       final String replacement = 'GMSServices.provideAPIKey("$googleMapsSDKApiKey")';
       if(FlutterAppTransmuter.verboseDebug>0) {
         print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}'.lime);
-      }   
+      }
       occurrences++;
       return replacement;
     });
@@ -175,4 +146,5 @@ class IOSTransmute {
     FileUtils.writeAsStringSync(manifestFile,contents);
     print(iosColor('Updated Google API Key in AppDelegate.swift File'));
   }
+OBSOLETE UNUSED */
 }

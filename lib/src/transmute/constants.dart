@@ -14,6 +14,7 @@ enum TransmuterKeys {
 
   final String jsonValue;
 
+/* OBSOLETE UNUSED
   static TransmuterKeys? interpretAsTransmuterKeys(dynamic jsonValue) {
     print('interpretAsTransmuterKeys pptJsonValue=$jsonValue');
     if(jsonValue==null) {
@@ -26,6 +27,7 @@ enum TransmuterKeys {
       return match;
     }
   }
+OBSOLETE UNUSED */
 
   String get key => jsonValue;
 
@@ -40,6 +42,7 @@ enum TransmuterKeys {
 class RegExConstants {
   static final packageInMainActivity = RegExp(r'^(package (?:\.|\w)+)',
             caseSensitive: true, multiLine: false);
+/* OBSOLETE UNUSED
   static final packageInAndroidManifest = RegExp(r'package\s*=\s*"([^"]*(\\"[^"]*)*)"',
             caseSensitive: true, multiLine: false);
   static final androidLabelInAndroidManifest = RegExp(r'android:label\s*=\s*"([^"]*(\\"[^"]*)*)"',
@@ -51,11 +54,12 @@ class RegExConstants {
   static final applicationIdInBuildGradleKts = RegExp(r'applicationId\s*=?\s*"(.*)"',
         caseSensitive: true, multiLine: false);
   static final bundleIdentifierInProjectPbxproj =  RegExp(r'PRODUCT_BUNDLE_IDENTIFIER\s*=?\s*(.*);',
-        caseSensitive: true, multiLine: false);        
+        caseSensitive: true, multiLine: false);
   static final bundleDisplayNameInInfoPList = RegExp(r'INFOPLIST_KEY_CFBundleDisplayName\s*=?\s*(.*);',
         caseSensitive: true, multiLine: false);
   static final gmsServicesProvideApiKeyInInfoPList = RegExp(r'GMSServices\.provideAPIKey\("([^"]+)"\)',
         caseSensitive: true, multiLine: true);
+OBSOLETE UNUSED */
   static final versionInPubspecYaml = RegExp(r'^version:\s*(.+)$',
         caseSensitive: true, multiLine: true);
 }

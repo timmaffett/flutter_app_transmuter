@@ -34,8 +34,6 @@ class FlutterAppTransmuter {
       final String contents = File(Constants.transmuteDefintionFile).readAsStringSync();
       final data = jsonDecode(contents) as Map<String, dynamic>;
 
-      _printBrandBanner(data);
-
       assert(data[TransmuterKeys.packageName.key] is String,
           Constants.packageNameStringError);
       assert(data[TransmuterKeys.appName.key] is String,
@@ -89,6 +87,49 @@ class FlutterAppTransmuter {
     _runTransmuteCheckInteractive(autoConfirm: autoConfirm);
   }
 
+  static void switchBrand({required bool executeDryRun, required int verboseDebugLevel, required String newBrandDir, bool autoConfirm = false}) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+
+    // Step 1: Read current brand_source_directory from transmute.json
+    if (!FileUtils.rebrandJSONExist()) {
+      print('Error: ${Constants.transmuteDefintionFile} file not found.'.brightRed);
+      return;
+    }
+
+    String? currentBrandDir;
+    try {
+      final contents = File(Constants.transmuteDefintionFile).readAsStringSync();
+      final data = jsonDecode(contents) as Map<String, dynamic>;
+      final saved = data[Constants.brandSourceDirectoryKey];
+      if (saved == null || saved is! String || saved.isEmpty) {
+        print('Error: No "${Constants.brandSourceDirectoryKey}" key found in ${Constants.transmuteDefintionFile}.'.brightRed);
+        print('You must have a current brand set (via --copy) before switching to a new brand.'.brightYellow);
+        return;
+      }
+      currentBrandDir = saved;
+    } catch (ex) {
+      print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
+      return;
+    }
+
+    if (!Directory(currentBrandDir).existsSync()) {
+      print('Error: Current brand directory "$currentBrandDir" does not exist.'.brightRed);
+      return;
+    }
+
+    // Step 2: Update current brand files from project (same as --update)
+    print('Step 1: Updating current brand ($currentBrandDir) from project...'.brightGreen);
+    print('');
+    BrandFileOperations.updateBrandFiles(currentBrandDir, autoConfirm: autoConfirm);
+
+    // Step 3: Copy new brand files into the project (same as --copy)
+    print('');
+    print('Step 2: Copying new brand files from $newBrandDir into project...'.brightGreen);
+    print('');
+    BrandFileOperations.copyBrandFiles(newBrandDir);
+  }
+
   static void statusBrand({required bool executeDryRun, required int verboseDebugLevel}) {
     executingDryRun = executeDryRun;
     verboseDebug = verboseDebugLevel;
@@ -101,8 +142,6 @@ class FlutterAppTransmuter {
     try {
       final contents = File(Constants.transmuteDefintionFile).readAsStringSync();
       final data = jsonDecode(contents) as Map<String, dynamic>;
-
-      _printBrandBanner(data);
 
       final brandDir = data[Constants.brandSourceDirectoryKey];
 
@@ -143,8 +182,6 @@ class FlutterAppTransmuter {
       final contents = File(Constants.transmuteDefintionFile).readAsStringSync();
       final data = jsonDecode(contents) as Map<String, dynamic>;
 
-      _printBrandBanner(data);
-
       print('Checking transmute values against project files...'.brightGreen);
       _runTransmuteCheck(data);
     } catch (ex) {
@@ -176,20 +213,11 @@ class FlutterAppTransmuter {
       final contents = File(Constants.transmuteDefintionFile).readAsStringSync();
       final data = jsonDecode(contents) as Map<String, dynamic>;
 
-      _printBrandBanner(data);
-
       final resolvedData = _resolveTransmuteData(data);
       final operations = TransmuteOperationRunner.loadAndMergeOperations();
       TransmuteOperationRunner.checkAllInteractive(operations, resolvedData, autoConfirm: autoConfirm);
     } catch (ex) {
       print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
-    }
-  }
-
-  static void _printBrandBanner(Map<String, dynamic> data) {
-    final brandName = data[Constants.brandNameKey];
-    if (brandName != null && brandName is String && brandName.isNotEmpty) {
-      printRainbow('  \u{1FA84}\u{2728} Operating on ${Constants.transmuteDefintionFile} for $brandName \u{1F680}\u{1F4AB}  ');
     }
   }
 

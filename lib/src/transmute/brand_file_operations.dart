@@ -197,19 +197,50 @@ class BrandFileOperations {
       } else {
         print('  DIFFERENT: ${mapping.source} != $projectPath'.brightRed);
         different++;
-        bool doUpdate = autoConfirm;
-        if (!autoConfirm) {
-          stdout.write('  Update brand file ${mapping.source.brightCyan} from $projectPath? (y/N): '.brightYellow);
-          final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-          doUpdate = response == 'y' || response == 'yes';
+
+        // Check modification times to warn if brand file is newer
+        final brandModified = File(brandPath).lastModifiedSync();
+        final projectModified = File(projectPath).lastModifiedSync();
+        final brandIsNewer = brandModified.isAfter(projectModified);
+
+        if (brandIsNewer) {
+          print('  WARNING: Brand file is NEWER than project file'.brightYellow);
+          print('    brand:   ${brandModified.toLocal()}'.brightYellow);
+          print('    project: ${projectModified.toLocal()}'.brightYellow);
         }
-        if (doUpdate) {
+
+        if (autoConfirm) {
           FileUtils.copyFile(projectPath, brandPath);
           print('  UPDATED: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
           updated++;
         } else {
-          print('  SKIPPED'.brightYellow);
-          skipped++;
+          if (brandIsNewer) {
+            stdout.write('  (B) use brand file -> project, (P) use project file -> brand, or (N) skip (default N): '.brightYellow);
+            final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+            if (response == 'b') {
+              FileUtils.copyFile(brandPath, projectPath);
+              print('  UPDATED PROJECT: $brandPath -> ${projectPath.brightGreen}'.brightGreen);
+              updated++;
+            } else if (response == 'p') {
+              FileUtils.copyFile(projectPath, brandPath);
+              print('  UPDATED BRAND: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
+              updated++;
+            } else {
+              print('  SKIPPED'.brightYellow);
+              skipped++;
+            }
+          } else {
+            stdout.write('  Update brand file ${mapping.source.brightCyan} from $projectPath? (y/N): '.brightYellow);
+            final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+            if (response == 'y' || response == 'yes') {
+              FileUtils.copyFile(projectPath, brandPath);
+              print('  UPDATED: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
+              updated++;
+            } else {
+              print('  SKIPPED'.brightYellow);
+              skipped++;
+            }
+          }
         }
       }
     }

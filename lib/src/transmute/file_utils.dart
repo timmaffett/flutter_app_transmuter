@@ -48,6 +48,7 @@ bool _isWideChar(int rune) {
 }
 
 class FileUtils {
+/* OBSOLETE UNUSED
   static void replaceInFile(String path, oldPackage, newPackage) async {
     String? contents = readFileAsString(path);
     if (contents == null) {
@@ -57,6 +58,7 @@ class FileUtils {
     contents = contents.replaceAll(oldPackage, newPackage);
     writeStringToFilename(path, contents);
   }
+OBSOLETE UNUSED */
 
   static void replaceInFileRegex(String replacementTitle, String path, RegExp regex, String replacement) {
     String? contents = readFileAsString(path);
@@ -65,7 +67,7 @@ class FileUtils {
       print('ERROR:: file at $path not found'.brightRed);
       return;
     }
-    
+
     //OBSOLETE//contents = contents.replaceAll(regex, replacement);
 
     var match = regex.firstMatch(contents);
@@ -82,7 +84,7 @@ class FileUtils {
       contents = contents.replaceAllMapped(regex, (match) {
         if(FlutterAppTransmuter.verboseDebug>0) {
           print('Replacing ${match.group(0)!.brightBlue} with ${replacement.brightGreen}');
-        }        
+        }
         occurrences++;
         return replacement;
       });
@@ -103,6 +105,7 @@ class FileUtils {
     return contents;
   }
 
+/* OBSOLETE UNUSED
   static void writeAsStringSync(File file, String contents) {
     if(FlutterAppTransmuter.executingDryRun) {
       print('..dry run - skipping writing ${file.path}'.brightYellow);
@@ -110,6 +113,7 @@ class FileUtils {
       file.writeAsStringSync(contents,flush:true);
     }
   }
+OBSOLETE UNUSED */
 
   static void writeStringToFilename(String path, String contents) {
     if(FlutterAppTransmuter.executingDryRun) {

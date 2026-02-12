@@ -9,6 +9,9 @@ homepage: https://github.com/timmaffett/flutter_app_transmuter
 repository: https://github.com/timmaffett/flutter_app_transmuter
 issue_tracker: https://github.com/timmaffett/flutter_app_transmuter/issues
 
+executables:
+  transmute: main
+
 environment:
   sdk: ^3.5.3
 
