@@ -87,7 +87,7 @@ class FlutterAppTransmuter {
     _runTransmuteCheckInteractive(autoConfirm: autoConfirm);
   }
 
-  static void switchBrand({required bool executeDryRun, required int verboseDebugLevel, required String newBrandDir, bool autoConfirm = false}) {
+  static void switchBrand({required bool executeDryRun, required int verboseDebugLevel, required String newBrandDir, bool autoConfirm = false, Set<String> enabledFlags = const {}, Set<String> excludedSteps = const {}, required List<PostSwitchOperation> postSwitchOperations}) {
     executingDryRun = executeDryRun;
     verboseDebug = verboseDebugLevel;
 
@@ -128,6 +128,11 @@ class FlutterAppTransmuter {
     print('Step 2: Copying new brand files from $newBrandDir into project...'.brightGreen);
     print('');
     BrandFileOperations.copyBrandFiles(newBrandDir);
+
+    // Step 4: Run post-switch operations
+    print('');
+    print('Step 3: Running post-switch operations...'.brightGreen);
+    TransmuteOperationRunner.executePostSwitchOperations(postSwitchOperations, enabledFlags, excludedSteps: excludedSteps, brandDir: newBrandDir);
   }
 
   static void statusBrand({required bool executeDryRun, required int verboseDebugLevel}) {

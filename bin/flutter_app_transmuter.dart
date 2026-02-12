@@ -22,6 +22,8 @@ import 'package:path/path.dart' as path;
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
+import 'package:flutter_app_transmuter/src/transmute/transmute_operations.dart';
+import 'package:flutter_app_transmuter/src/transmute/default_transmute_operations.dart';
 
 enum Options {
   transmute('transmute'),
@@ -38,7 +40,9 @@ enum Options {
   status('status'),
   check('check'),
   verify('verify'),
-  yes('yes');
+  yes('yes'),
+  showDefaultYaml('showdefaultyaml'),
+  writeDefaultYaml('writedefaultyaml');
 
   const Options(this.name);
 
@@ -138,6 +142,18 @@ void main(List<String> args) async {
       valueHelp: 'new_brand_dir',
     )
     ..addFlag(
+      Options.showDefaultYaml.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Print the default transmute operations YAML to stdout',
+    )
+    ..addOption(
+      Options.writeDefaultYaml.name,
+      help: 'Write default transmute operations YAML to file (default: ${Constants.transmuteOperationsFile})',
+      valueHelp: 'filename',
+      defaultsTo: '',
+    )
+    ..addFlag(
       Options.yes.name,
       defaultsTo: false,
       negatable: false,
@@ -197,9 +213,23 @@ void main(List<String> args) async {
 //UNUSED FLAGFS//    )
     ;
 
+  // Extract +flag and -exclude arguments (e.g. +flutterfire, -clean) before arg parsing
+  final enabledFlags = <String>{};
+  final excludedSteps = <String>{};
+  final argsWithoutFlags = <String>[];
+  for (final arg in args) {
+    if (arg.startsWith('+')) {
+      enabledFlags.add(arg.substring(1));
+    } else if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 1) {
+      excludedSteps.add(arg.substring(1));
+    } else {
+      argsWithoutFlags.add(arg);
+    }
+  }
+
   // Preprocess args: allow --diff and --update to be used without a value
   // by inserting an empty value when no argument follows
-  final processedArgs = _preprocessOptionalValueArgs(args, ['--diff', '--update']);
+  final processedArgs = _preprocessOptionalValueArgs(argsWithoutFlags, ['--diff', '--update', '--writedefaultyaml']);
 
   late final ArgResults parsedArgs;
   int verboseDebugLevel = 0;
@@ -226,6 +256,35 @@ void main(List<String> args) async {
   if (parsedArgs[Options.usage.name] == true ||
       parsedArgs[Options.help.name] == true) {
     print(parser.usage);
+    print('');
+    print('Post-switch flags (used with --switch):');
+    print('  +flutterfire   Run flutterfire configure after switch');
+    print('  +build         Run platform build (apk/ipa) after switch');
+    print('  -stepname      Exclude a post-switch step (e.g. -clean, -pub_get)');
+    return;
+  }
+
+  // Handle --showdefaultyaml (utility command, exits immediately)
+  if (parsedArgs[Options.showDefaultYaml.name] == true) {
+    print(defaultTransmuteOperationsYaml);
+    return;
+  }
+
+  // Handle --writedefaultyaml (utility command, exits immediately)
+  if (parsedArgs.wasParsed(Options.writeDefaultYaml.name)) {
+    final String filenameArg = parsedArgs[Options.writeDefaultYaml.name] as String;
+    final String filename = filenameArg.isEmpty ? Constants.transmuteOperationsFile : filenameArg;
+    final file = File(filename);
+    if (file.existsSync()) {
+      stdout.write('File "$filename" already exists. Overwrite? (y/N): '.brightYellow);
+      final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+      if (response != 'y' && response != 'yes') {
+        print('Aborted.'.brightYellow);
+        return;
+      }
+    }
+    file.writeAsStringSync(defaultTransmuteOperationsYaml);
+    print('Default operations YAML written to "$filename".'.brightGreen);
     return;
   }
 
@@ -235,6 +294,13 @@ void main(List<String> args) async {
 
   if(verboseDebugLevel>0) {
     print('verbose debug level: $verboseDebugLevel'.brightYellow);
+  }
+
+  if (enabledFlags.isNotEmpty) {
+    print('Enabled flags: ${enabledFlags.map((f) => '+$f').join(', ')}'.brightCyan);
+  }
+  if (excludedSteps.isNotEmpty) {
+    print('Excluded steps: ${excludedSteps.map((s) => '-$s').join(', ')}'.brightYellow);
   }
 
   //NOTUSED//rootDir = getRootPathsToLatestInstalledPackage();
@@ -314,8 +380,17 @@ void main(List<String> args) async {
       print('Error: New brand directory "$switchDir" does not exist.'.brightRed);
       return;
     }
+
+    // Load and validate post-switch operations before starting any work
+    final postOps = TransmuteOperationRunner.loadAndMergePostSwitchOperations();
+    final validationError = TransmuteOperationRunner.validatePostSwitchOperations(postOps);
+    if (validationError != null) {
+      print('Error in post_switch_operations: $validationError'.brightRed);
+      return;
+    }
+
     final bool autoConfirm = parsedArgs[Options.yes.name] == true;
-    FlutterAppTransmuter.switchBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, newBrandDir: switchDir, autoConfirm: autoConfirm);
+    FlutterAppTransmuter.switchBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, newBrandDir: switchDir, autoConfirm: autoConfirm, enabledFlags: enabledFlags, excludedSteps: excludedSteps, postSwitchOperations: postOps);
   }
 }
 

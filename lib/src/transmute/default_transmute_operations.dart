@@ -131,4 +131,16 @@ operations:
     multiline: true
     regex: '^version:\s*(.+)$'
     replacement: 'version: $value'
+
+post_switch_operations:
+  transmute_command: "--transmute"
+  launcher_icons: "dart run flutter_launcher_icons"
+  native_splash: "dart run flutter_native_splash:create"
+  clean: "flutter clean"
+  ios_remove_derived_data: "rm -rf ~/Library/Developer/Xcode/DerivedData/Runner-*"
+  ios_xcode_reminder: "echo 'XCODE: Be sure to close Xcode, reopen Runner.xcworkspace, CLEAN build folder, and verify TEAM in Signing & Capabilities'"
+  pub_get: "flutter pub get"
+  requireflag_flutterfire: "flutterfire configure --yes --overwrite-firebase-options"
+  android_requireflag_build: "flutter build apk --target-platform android-arm64"
+  ios_requireflag_build: "flutter build ipa"
 ''';

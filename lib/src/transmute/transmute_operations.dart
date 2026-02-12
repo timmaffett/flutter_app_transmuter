@@ -8,6 +8,26 @@ import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 import 'package:flutter_app_transmuter/src/transmute/android_transmute.dart';
 import 'package:flutter_app_transmuter/src/transmute/default_transmute_operations.dart';
 
+class PostSwitchOperation {
+  final String id;
+  final String stepName;
+  final String command;
+  final String platform;
+  final String? requireFlag;
+  final bool disabled;
+  final bool isTransmuteCommand;
+
+  PostSwitchOperation({
+    required this.id,
+    required this.stepName,
+    required this.command,
+    this.platform = 'both',
+    this.requireFlag,
+    this.disabled = false,
+    this.isTransmuteCommand = false,
+  });
+}
+
 class TransmuteOperation {
   final String id;
   final String description;
@@ -668,5 +688,280 @@ class TransmuteOperationRunner {
     final active = merged.where((op) => !op.disabled).toList();
     print('Final operation count: ${active.length} (${merged.length - active.length} disabled)'.limeGreen);
     return active;
+  }
+
+  // ---- Post-switch operations ----
+
+  static List<PostSwitchOperation> loadAndMergePostSwitchOperations() {
+    final defaults = _parsePostSwitchOpsYaml(defaultTransmuteOperationsYaml);
+    if (FlutterAppTransmuter.verboseDebug > 0) {
+      print('Loaded ${defaults.length} default post-switch operations'.limeGreen);
+    }
+
+    final userFile = File(Constants.transmuteOperationsFile);
+    if (!userFile.existsSync()) {
+      return defaults;
+    }
+
+    final userYaml = userFile.readAsStringSync();
+    final userOps = _parsePostSwitchOpsYaml(userYaml);
+    if (userOps.isEmpty) return defaults;
+
+    print('Merging user post-switch operations...'.limeGreen);
+    return _mergePostSwitchOperations(defaults, userOps);
+  }
+
+  static List<PostSwitchOperation> _parsePostSwitchOpsYaml(String yamlContent) {
+    final doc = loadYaml(yamlContent);
+    if (doc == null || doc['post_switch_operations'] == null) return [];
+
+    final YamlMap opsMap = doc['post_switch_operations'] as YamlMap;
+    final ops = <PostSwitchOperation>[];
+
+    for (final entry in opsMap.entries) {
+      final String key = entry.key as String;
+      final String command = (entry.value as String?) ?? '';
+
+      String platform = 'both';
+      String stepName = key;
+      String? requireFlag;
+
+      // Extract platform prefix
+      if (stepName.startsWith('ios_')) {
+        platform = 'ios';
+        stepName = stepName.substring(4);
+      } else if (stepName.startsWith('android_')) {
+        platform = 'android';
+        stepName = stepName.substring(8);
+      }
+
+      // Extract requireflag_ prefix
+      if (stepName.startsWith('requireflag_')) {
+        requireFlag = stepName.substring(12);
+        stepName = requireFlag;
+      }
+
+      // Detect transmute_command special stepname
+      bool isTransmuteCommand = (stepName == 'transmute_command');
+
+      bool disabled = command.toLowerCase() == 'disabled' || command.isEmpty;
+
+      ops.add(PostSwitchOperation(
+        id: key,
+        stepName: stepName,
+        command: command,
+        platform: platform,
+        requireFlag: requireFlag,
+        disabled: disabled,
+        isTransmuteCommand: isTransmuteCommand,
+      ));
+    }
+
+    return ops;
+  }
+
+  static List<PostSwitchOperation> _mergePostSwitchOperations(
+      List<PostSwitchOperation> defaults, List<PostSwitchOperation> overrides) {
+    final merged = List<PostSwitchOperation>.from(defaults);
+
+    final idToIndex = <String, int>{};
+    for (int i = 0; i < merged.length; i++) {
+      idToIndex[merged[i].id] = i;
+    }
+
+    final newOps = <PostSwitchOperation>[];
+
+    for (final userOp in overrides) {
+      final idx = idToIndex[userOp.id];
+      if (idx != null) {
+        if (userOp.disabled) {
+          print('  Disabled default post-switch operation: ${userOp.id}'.brightYellow);
+          merged[idx] = PostSwitchOperation(
+            id: userOp.id,
+            stepName: merged[idx].stepName,
+            command: '',
+            platform: merged[idx].platform,
+            requireFlag: merged[idx].requireFlag,
+            disabled: true,
+          );
+        } else {
+          print('  Overriding default post-switch operation: ${userOp.id}'.limeGreen);
+          merged[idx] = userOp;
+        }
+      } else {
+        if (!userOp.disabled) {
+          print('  Adding new user post-switch operation: ${userOp.id}'.limeGreen);
+          newOps.add(userOp);
+        }
+      }
+    }
+
+    merged.addAll(newOps);
+    return merged.where((op) => !op.disabled).toList();
+  }
+
+  /// Validates post-switch operations at startup. Returns an error message
+  /// string if validation fails, or null if all operations are valid.
+  /// Currently validates that transmute_command steps only contain allowed options.
+  static String? validatePostSwitchOperations(List<PostSwitchOperation> operations) {
+    const allowedOptions = {'--transmute', '--yes', '--debug'};
+
+    for (final op in operations) {
+      if (!op.isTransmuteCommand || op.disabled) continue;
+
+      final parts = op.command.trim().split(RegExp(r'\s+'));
+      for (final part in parts) {
+        if (part.isEmpty) continue;
+        if (part.startsWith('--verbose')) {
+          if (part != '--verbose' && !RegExp(r'^--verbose=\d+$').hasMatch(part)) {
+            return 'Invalid option "$part" in transmute_command "${op.id}". '
+                'Allowed: --transmute, --yes, --debug, --verbose[=N]';
+          }
+        } else if (!allowedOptions.contains(part)) {
+          return 'Invalid option "$part" in transmute_command "${op.id}". '
+              'Allowed: --transmute, --yes, --debug, --verbose[=N]';
+        }
+      }
+
+      if (!parts.contains('--transmute')) {
+        return 'transmute_command "${op.id}" must include --transmute option.';
+      }
+    }
+    return null;
+  }
+
+  static void executePostSwitchOperations(
+      List<PostSwitchOperation> operations,
+      Set<String> enabledFlags,
+      {Set<String> excludedSteps = const {},
+      String? brandDir}) {
+    final isWindows = Platform.isWindows;
+    final isMacOS = Platform.isMacOS;
+
+    print('');
+    print('Running post-switch operations...'.brightGreen);
+    print('');
+
+    int executed = 0;
+    int skipped = 0;
+
+    for (final op in operations) {
+      if (op.disabled) {
+        skipped++;
+        continue;
+      }
+
+      // Exclusion check: -stepname on command line skips matching steps
+      // Matches either the full id (e.g. -ios_remove_derived_data)
+      // or the prefix-stripped stepName suffix (e.g. -remove_derived_data)
+      String? excludedBy;
+      for (final ex in excludedSteps) {
+        if (ex == op.id || ex == op.stepName) {
+          excludedBy = ex;
+          break;
+        }
+      }
+      if (excludedBy != null) {
+        print('Skipping ${op.id}: excluded by -$excludedBy'.brightYellow);
+        skipped++;
+        continue;
+      }
+
+      // Platform check: ios_ steps only on macOS, android_ steps only on non-macOS
+      if (op.platform == 'ios' && !isMacOS) {
+        if (FlutterAppTransmuter.verboseDebug > 0) {
+          print('Skipping ${op.id}: iOS-only step (not on macOS)'.brightYellow);
+        }
+        skipped++;
+        continue;
+      }
+      if (op.platform == 'android' && isMacOS) {
+        if (FlutterAppTransmuter.verboseDebug > 0) {
+          print('Skipping ${op.id}: Android-only step (on macOS)'.brightYellow);
+        }
+        skipped++;
+        continue;
+      }
+
+      // Flag check
+      if (op.requireFlag != null && !enabledFlags.contains(op.requireFlag)) {
+        if (FlutterAppTransmuter.verboseDebug > 0) {
+          print('Skipping ${op.id}: requires +${op.requireFlag} flag'.brightYellow);
+        }
+        skipped++;
+        continue;
+      }
+
+      final color = _colorForPlatform(op.platform);
+
+      // Handle transmute_command: invoke internally instead of spawning process
+      if (op.isTransmuteCommand) {
+        print(color('>> transmute (internal)'));
+        print('  ${op.command.brightCyan}');
+
+        // Parse options from command value
+        final parts = op.command.trim().split(RegExp(r'\s+'));
+        int verboseLevel = FlutterAppTransmuter.verboseDebug;
+        for (final part in parts) {
+          if (part == '--debug' || part == '--verbose') {
+            if (verboseLevel < 1) verboseLevel = 1;
+          } else if (part.startsWith('--verbose=')) {
+            final level = int.tryParse(part.substring('--verbose='.length));
+            if (level != null) verboseLevel = level;
+          }
+        }
+
+        FlutterAppTransmuter.run(
+          executeDryRun: FlutterAppTransmuter.executingDryRun,
+          verboseDebugLevel: verboseLevel,
+        );
+        executed++;
+        continue;
+      }
+
+      // Substitute $brand_dir in command
+      String command = op.command;
+      if (brandDir != null) {
+        command = command.replaceAll(r'$brand_dir', brandDir);
+      }
+
+      print(color('>> ${op.stepName}'));
+      print('  ${command.brightCyan}');
+
+      if (FlutterAppTransmuter.executingDryRun) {
+        print('  ..dry run - skipping execution'.brightYellow);
+        executed++;
+        continue;
+      }
+
+      try {
+        final result = Process.runSync(
+          isWindows ? 'cmd' : 'sh',
+          isWindows ? ['/c', command] : ['-c', command],
+        );
+
+        final stdoutStr = result.stdout.toString().trim();
+        final stderrStr = result.stderr.toString().trim();
+
+        if (stdoutStr.isNotEmpty) {
+          print(stdoutStr);
+        }
+        if (stderrStr.isNotEmpty) {
+          print(stderrStr.brightYellow);
+        }
+
+        if (result.exitCode != 0) {
+          print('  WARNING: Exit code ${result.exitCode}'.brightRed);
+        } else {
+          print('  Done.'.brightGreen);
+        }
+        executed++;
+      } catch (ex) {
+        print('  ERROR: $ex'.brightRed);
+      }
+    }
+
+    print('');
+    print('Post-switch operations complete: $executed executed, $skipped skipped.'.brightGreen);
   }
 }
