@@ -93,7 +93,7 @@ class TransmuteOperationRunner {
 
   static List<TransmuteOperation> loadAndMergeOperations() {
     // 1. Load defaults
-    final defaults = _parseOperationsYaml(defaultTransmuteOperationsYaml);
+    final defaults = parseOperationsYaml(defaultTransmuteOperationsYaml);
     print('Loaded ${defaults.length} default transmute operations'.limeGreen);
 
     // 2. Load user overrides if file exists
@@ -107,17 +107,17 @@ class TransmuteOperationRunner {
 
     print('Found user ${Constants.transmuteOperationsFile}, merging with defaults...'.limeGreen);
     final userYaml = userFile.readAsStringSync();
-    final userOps = _parseOperationsYaml(userYaml);
+    final userOps = parseOperationsYaml(userYaml);
 
     // 3. Merge
-    return _mergeOperations(defaults, userOps);
+    return mergeOperations(defaults, userOps);
   }
 
   static void executeAll(List<TransmuteOperation> operations, Map<String, dynamic> transmuteData) {
     for (final op in operations) {
       if (op.disabled) continue;
 
-      final value = _resolveValue(op, transmuteData);
+      final value = resolveValue(op, transmuteData);
       if (value == null || value.isEmpty) {
         if (FlutterAppTransmuter.verboseDebug > 0) {
           print('Skipping ${op.id}: no value for json_key "${op.jsonKey}"'
@@ -131,10 +131,10 @@ class TransmuteOperationRunner {
 
       switch (op.type) {
         case 'regex_replace':
-          _executeRegexReplace(op, value);
+          executeRegexReplace(op, value);
           break;
         case 'extract_and_replace':
-          _executeExtractAndReplace(op, value);
+          executeExtractAndReplace(op, value);
           break;
         case 'move_activity':
           AndroidTransmuter.updateMainActivity(value);
@@ -145,7 +145,7 @@ class TransmuteOperationRunner {
     }
   }
 
-  static void _executeRegexReplace(TransmuteOperation op, String value) {
+  static void executeRegexReplace(TransmuteOperation op, String value) {
     final filePath = op.file;
     if (filePath == null) {
       print('ERROR: regex_replace operation ${op.id} has no file path'.brightRed);
@@ -191,7 +191,7 @@ class TransmuteOperationRunner {
     FileUtils.writeStringToFilename(filePath, contents);
   }
 
-  static void _executeExtractAndReplace(TransmuteOperation op, String value) {
+  static void executeExtractAndReplace(TransmuteOperation op, String value) {
     final filePath = op.file;
     if (filePath == null) {
       print('ERROR: extract_and_replace operation ${op.id} has no file path'.brightRed);
@@ -244,7 +244,7 @@ class TransmuteOperationRunner {
     for (final op in operations) {
       if (op.disabled) continue;
 
-      final value = _resolveValue(op, transmuteData);
+      final value = resolveValue(op, transmuteData);
       if (value == null || value.isEmpty) {
         print('  SKIP:     [${op.id}] no value for json_key "${op.jsonKey}"'
             '${op.fallbackKey != null ? ' or fallback_key "${op.fallbackKey}"' : ''}'.brightYellow);
@@ -256,7 +256,7 @@ class TransmuteOperationRunner {
 
       switch (op.type) {
         case 'regex_replace':
-          final result = _checkRegexReplace(op, value);
+          final result = checkRegexReplace(op, value);
           if (result == null) {
             skippedOps++;
           } else if (result) {
@@ -267,7 +267,7 @@ class TransmuteOperationRunner {
           }
           break;
         case 'extract_and_replace':
-          final result = _checkExtractAndReplace(op, value);
+          final result = checkExtractAndReplace(op, value);
           if (result == null) {
             skippedOps++;
           } else if (result) {
@@ -316,7 +316,7 @@ class TransmuteOperationRunner {
       if (op.disabled) continue;
 
       final color = _colorForPlatform(op.platform);
-      final value = _resolveValue(op, transmuteData);
+      final value = resolveValue(op, transmuteData);
 
       if (value == null || value.isEmpty) {
         // No value in transmute.json - try to extract from file and offer to add
@@ -335,7 +335,7 @@ class TransmuteOperationRunner {
           continue;
         }
 
-        final rawValue = _extractCurrentFileValue(op);
+        final rawValue = extractCurrentFileValue(op);
         if (rawValue == null || rawValue.isEmpty) {
           print('  SKIP:     [${op.id}] no value for json_key "${op.jsonKey}" '
               'and pattern not matched in ${op.file}'.brightYellow);
@@ -346,7 +346,7 @@ class TransmuteOperationRunner {
         // Determine the json-appropriate value (reverse-map template if needed)
         String jsonValue;
         if (op.type == 'extract_and_replace' && op.replacement != null) {
-          jsonValue = _reverseTemplate(op.replacement!, rawValue);
+          jsonValue = reverseTemplate(op.replacement!, rawValue);
         } else {
           jsonValue = rawValue;
         }
@@ -359,6 +359,13 @@ class TransmuteOperationRunner {
         if (autoConfirm) {
           doAdd = true;
           print('              Auto-adding to transmute.json (--yes)'.brightGreen);
+        } else if (FlutterAppTransmuter.autoSkip) {
+          doAdd = false;
+          print('              Auto-skipping (--skip)'.brightYellow);
+        } else if (FlutterAppTransmuter.fatalPrompts) {
+          print('              ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+          doAdd = false;
+          exit(1);
         } else {
           stdout.write('              Add "${op.jsonKey}" = "$jsonValue" to transmute.json? (Y/N): '.brightYellow);
           final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
@@ -400,7 +407,7 @@ class TransmuteOperationRunner {
         continue;
       }
 
-      final rawValue = _extractCurrentFileValue(op);
+      final rawValue = extractCurrentFileValue(op);
       if (rawValue == null) {
         print('  SKIP:     [${op.id}] pattern not matched in ${op.file}'.brightYellow);
         skippedOps++;
@@ -433,9 +440,19 @@ class TransmuteOperationRunner {
         print('              transmute.json specifies:  ${expectedDisplayValue.brightGreen}');
 
         String choice;
-        if (autoConfirm) {
+        if (FlutterAppTransmuter.autoTransmuteValue) {
+          choice = 't';
+          print('              Auto-answering T (--transmutevalue)'.brightYellow);
+        } else if (FlutterAppTransmuter.autoFileValue) {
+          choice = 'f';
+          print('              Auto-answering F (--filevalue)'.brightYellow);
+        } else if (autoConfirm || FlutterAppTransmuter.autoSkip) {
           choice = 'n';
-          print('              Auto-skipping mismatch (--yes)'.brightYellow);
+          print('              Auto-skipping mismatch (${autoConfirm ? '--yes' : '--skip'})'.brightYellow);
+        } else if (FlutterAppTransmuter.fatalPrompts) {
+          print('              ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+          choice = 'n';
+          exit(1);
         } else {
           stdout.write('              (T) transmute.json -> file, (F) file -> transmute.json, or (N) no change (default N): '.brightYellow);
           choice = (stdin.readLineSync()?.trim().toLowerCase() ?? 'n');
@@ -444,16 +461,16 @@ class TransmuteOperationRunner {
         if (choice == 't') {
           // Use transmute.json value -> update the file
           if (op.type == 'regex_replace') {
-            _executeRegexReplace(op, value);
+            executeRegexReplace(op, value);
           } else if (op.type == 'extract_and_replace') {
-            _executeExtractAndReplace(op, value);
+            executeExtractAndReplace(op, value);
           }
           updatedFiles++;
         } else if (choice == 'f') {
           // Use file value -> update transmute.json
           String jsonValue;
           if (op.type == 'extract_and_replace' && op.replacement != null) {
-            jsonValue = _reverseTemplate(op.replacement!, rawValue);
+            jsonValue = reverseTemplate(op.replacement!, rawValue);
           } else {
             jsonValue = rawValue;
           }
@@ -482,7 +499,7 @@ class TransmuteOperationRunner {
 
   /// Extract current raw value from a file using the operation's regex.
   /// Returns group(1) from the first match, or null.
-  static String? _extractCurrentFileValue(TransmuteOperation op) {
+  static String? extractCurrentFileValue(TransmuteOperation op) {
     if (op.file == null || op.regex == null) return null;
     final file = File(op.file!);
     if (!file.existsSync()) return null;
@@ -495,7 +512,7 @@ class TransmuteOperationRunner {
 
   /// Given a replacement template like '"$value"' and a raw captured value like '"MyApp"',
   /// reverse-map to get the json value 'MyApp'.
-  static String _reverseTemplate(String template, String rawValue) {
+  static String reverseTemplate(String template, String rawValue) {
     const marker = r'$value';
     final idx = template.indexOf(marker);
     if (idx < 0) return rawValue;
@@ -534,7 +551,7 @@ class TransmuteOperationRunner {
   }
 
   /// Returns true=match, false=mismatch, null=skipped
-  static bool? _checkRegexReplace(TransmuteOperation op, String value) {
+  static bool? checkRegexReplace(TransmuteOperation op, String value) {
     final filePath = op.file;
     if (filePath == null) return null;
 
@@ -565,7 +582,7 @@ class TransmuteOperationRunner {
   }
 
   /// Returns true=match, false=mismatch, null=skipped
-  static bool? _checkExtractAndReplace(TransmuteOperation op, String value) {
+  static bool? checkExtractAndReplace(TransmuteOperation op, String value) {
     final filePath = op.file;
     if (filePath == null) return null;
 
@@ -621,7 +638,7 @@ class TransmuteOperationRunner {
     return false;
   }
 
-  static String? _resolveValue(TransmuteOperation op, Map<String, dynamic> data) {
+  static String? resolveValue(TransmuteOperation op, Map<String, dynamic> data) {
     final primary = data[op.jsonKey];
     if (primary is String && primary.isNotEmpty) return primary;
 
@@ -633,7 +650,7 @@ class TransmuteOperationRunner {
     return null;
   }
 
-  static List<TransmuteOperation> _parseOperationsYaml(String yamlContent) {
+  static List<TransmuteOperation> parseOperationsYaml(String yamlContent) {
     final doc = loadYaml(yamlContent);
     if (doc == null || doc['operations'] == null) return [];
 
@@ -641,7 +658,7 @@ class TransmuteOperationRunner {
     return opsList.map((item) => TransmuteOperation.fromYamlMap(item as YamlMap)).toList();
   }
 
-  static List<TransmuteOperation> _mergeOperations(
+  static List<TransmuteOperation> mergeOperations(
       List<TransmuteOperation> defaults, List<TransmuteOperation> overrides) {
     // Build a mutable copy of defaults
     final merged = List<TransmuteOperation>.from(defaults);
@@ -693,7 +710,7 @@ class TransmuteOperationRunner {
   // ---- Post-switch operations ----
 
   static List<PostSwitchOperation> loadAndMergePostSwitchOperations() {
-    final defaults = _parsePostSwitchOpsYaml(defaultTransmuteOperationsYaml);
+    final defaults = parsePostSwitchOpsYaml(defaultTransmuteOperationsYaml);
     if (FlutterAppTransmuter.verboseDebug > 0) {
       print('Loaded ${defaults.length} default post-switch operations'.limeGreen);
     }
@@ -704,14 +721,14 @@ class TransmuteOperationRunner {
     }
 
     final userYaml = userFile.readAsStringSync();
-    final userOps = _parsePostSwitchOpsYaml(userYaml);
+    final userOps = parsePostSwitchOpsYaml(userYaml);
     if (userOps.isEmpty) return defaults;
 
     print('Merging user post-switch operations...'.limeGreen);
-    return _mergePostSwitchOperations(defaults, userOps);
+    return mergePostSwitchOperations(defaults, userOps);
   }
 
-  static List<PostSwitchOperation> _parsePostSwitchOpsYaml(String yamlContent) {
+  static List<PostSwitchOperation> parsePostSwitchOpsYaml(String yamlContent) {
     final doc = loadYaml(yamlContent);
     if (doc == null || doc['post_switch_operations'] == null) return [];
 
@@ -760,7 +777,7 @@ class TransmuteOperationRunner {
     return ops;
   }
 
-  static List<PostSwitchOperation> _mergePostSwitchOperations(
+  static List<PostSwitchOperation> mergePostSwitchOperations(
       List<PostSwitchOperation> defaults, List<PostSwitchOperation> overrides) {
     final merged = List<PostSwitchOperation>.from(defaults);
 

@@ -41,6 +41,13 @@ enum Options {
   check('check'),
   verify('verify'),
   yes('yes'),
+  skip('skip'),
+  brandFile('brandfile'),
+  projectFile('projectfile'),
+  transmuteValue('transmutevalue'),
+  fileValue('filevalue'),
+  fatalPrompts('fatal-prompts'),
+  executePostProcess('executepostprocess'),
   showDefaultYaml('showdefaultyaml'),
   writeDefaultYaml('writedefaultyaml');
 
@@ -141,6 +148,12 @@ void main(List<String> args) async {
       help: 'Update current brand files from project, then switch to <new_brand_dir> (requires brand_source_directory in transmute.json)',
       valueHelp: 'new_brand_dir',
     )
+    ..addOption(
+      Options.executePostProcess.name,
+      help: 'Run only the post-switch operations pipeline (uses brand_source_directory from transmute.json if no dir given)',
+      valueHelp: 'brand_dir',
+      defaultsTo: '',
+    )
     ..addFlag(
       Options.showDefaultYaml.name,
       defaultsTo: false,
@@ -157,7 +170,43 @@ void main(List<String> args) async {
       Options.yes.name,
       defaultsTo: false,
       negatable: false,
-      help: 'Auto-confirm all prompts (use with --update to skip interactive questions)',
+      help: 'Auto-confirm all prompts (answer Y to yes/no, copy project->brand for file diffs)',
+    )
+    ..addFlag(
+      Options.skip.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-answer N (skip/no change) to any prompt',
+    )
+    ..addFlag(
+      Options.brandFile.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-answer B (use brand file) for brand/project file conflict prompts',
+    )
+    ..addFlag(
+      Options.projectFile.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-answer P (use project file) for brand/project file conflict prompts',
+    )
+    ..addFlag(
+      Options.transmuteValue.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-answer T (use transmute.json value) for transmute/file mismatch prompts',
+    )
+    ..addFlag(
+      Options.fileValue.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Auto-answer F (use file value) for transmute/file mismatch prompts',
+    )
+    ..addFlag(
+      Options.fatalPrompts.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Exit with error if any interactive prompt is encountered',
     )
     ..addFlag(
       Options.dryrun.name,
@@ -229,7 +278,7 @@ void main(List<String> args) async {
 
   // Preprocess args: allow --diff and --update to be used without a value
   // by inserting an empty value when no argument follows
-  final processedArgs = _preprocessOptionalValueArgs(argsWithoutFlags, ['--diff', '--update', '--writedefaultyaml']);
+  final processedArgs = _preprocessOptionalValueArgs(argsWithoutFlags, ['--diff', '--update', '--writedefaultyaml', '--executepostprocess']);
 
   late final ArgResults parsedArgs;
   int verboseDebugLevel = 0;
@@ -249,6 +298,30 @@ void main(List<String> args) async {
   if (parsedArgs[Options.dryrun.name] == true) {
     executeDryRun = true;
   }
+
+  // Set auto-answer flags
+  FlutterAppTransmuter.autoYes = parsedArgs[Options.yes.name] == true;
+  FlutterAppTransmuter.autoSkip = parsedArgs[Options.skip.name] == true;
+  FlutterAppTransmuter.autoBrandFile = parsedArgs[Options.brandFile.name] == true;
+  FlutterAppTransmuter.autoProjectFile = parsedArgs[Options.projectFile.name] == true;
+  FlutterAppTransmuter.autoTransmuteValue = parsedArgs[Options.transmuteValue.name] == true;
+  FlutterAppTransmuter.autoFileValue = parsedArgs[Options.fileValue.name] == true;
+  FlutterAppTransmuter.fatalPrompts = parsedArgs[Options.fatalPrompts.name] == true;
+
+  // Conflict validation
+  if (FlutterAppTransmuter.autoYes && FlutterAppTransmuter.autoSkip) {
+    print('Error: --yes and --skip are mutually exclusive.'.brightRed);
+    return;
+  }
+  if (FlutterAppTransmuter.autoBrandFile && FlutterAppTransmuter.autoProjectFile) {
+    print('Error: --brandfile and --projectfile are mutually exclusive.'.brightRed);
+    return;
+  }
+  if (FlutterAppTransmuter.autoTransmuteValue && FlutterAppTransmuter.autoFileValue) {
+    print('Error: --transmutevalue and --filevalue are mutually exclusive.'.brightRed);
+    return;
+  }
+
   //NOTUSED//if (parsedArgs[Options.usefontbook.name] == true) {
   //NOTUSED//  macOSUseFontBook = true;
   //NOTUSED//}
@@ -257,7 +330,7 @@ void main(List<String> args) async {
       parsedArgs[Options.help.name] == true) {
     print(parser.usage);
     print('');
-    print('Post-switch flags (used with --switch):');
+    print('Post-switch flags (used with --switch and --executepostprocess):');
     print('  +flutterfire   Run flutterfire configure after switch');
     print('  +build         Run platform build (apk/ipa) after switch');
     print('  -stepname      Exclude a post-switch step (e.g. -clean, -pub_get)');
@@ -276,11 +349,21 @@ void main(List<String> args) async {
     final String filename = filenameArg.isEmpty ? Constants.transmuteOperationsFile : filenameArg;
     final file = File(filename);
     if (file.existsSync()) {
-      stdout.write('File "$filename" already exists. Overwrite? (y/N): '.brightYellow);
-      final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-      if (response != 'y' && response != 'yes') {
-        print('Aborted.'.brightYellow);
+      if (FlutterAppTransmuter.autoYes) {
+        print('File "$filename" already exists. Auto-overwriting (--yes).'.brightYellow);
+      } else if (FlutterAppTransmuter.autoSkip) {
+        print('File "$filename" already exists. Skipping (--skip).'.brightYellow);
         return;
+      } else if (FlutterAppTransmuter.fatalPrompts) {
+        print('Error: File "$filename" already exists and --fatal-prompts is set.'.brightRed);
+        exit(1);
+      } else {
+        stdout.write('File "$filename" already exists. Overwrite? (y/N): '.brightYellow);
+        final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+        if (response != 'y' && response != 'yes') {
+          print('Aborted.'.brightYellow);
+          return;
+        }
       }
     }
     file.writeAsStringSync(defaultTransmuteOperationsYaml);
@@ -323,10 +406,12 @@ void main(List<String> args) async {
   final bool doUpdate = parsedArgs.wasParsed(Options.update.name);
   final String updateDirArg = parsedArgs[Options.update.name] as String;
   final String? switchDir = parsedArgs[Options.switchBrand.name];
+  final bool doExecutePostProcess = parsedArgs.wasParsed(Options.executePostProcess.name);
+  final String executePostProcessDirArg = parsedArgs[Options.executePostProcess.name] as String;
 
-  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0) + (switchDir != null ? 1 : 0);
+  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0) + (switchDir != null ? 1 : 0) + (doExecutePostProcess ? 1 : 0);
   if (opCount > 1) {
-    print('Error: --status, --check, --verify, --transmute, --copy, --diff, --update, and --switch are mutually exclusive.'.brightRed);
+    print('Error: --status, --check, --verify, --transmute, --copy, --diff, --update, --switch, and --executepostprocess are mutually exclusive.'.brightRed);
     print(parser.usage);
     return;
   }
@@ -391,6 +476,39 @@ void main(List<String> args) async {
 
     final bool autoConfirm = parsedArgs[Options.yes.name] == true;
     FlutterAppTransmuter.switchBrand(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, newBrandDir: switchDir, autoConfirm: autoConfirm, enabledFlags: enabledFlags, excludedSteps: excludedSteps, postSwitchOperations: postOps);
+  } else if (doExecutePostProcess) {
+    // Resolve brand dir from arg or transmute.json
+    String? brandDir;
+    if (executePostProcessDirArg.isNotEmpty) {
+      brandDir = executePostProcessDirArg;
+      if (!Directory(brandDir).existsSync()) {
+        print('Error: Brand directory "$brandDir" does not exist.'.brightRed);
+        return;
+      }
+    } else {
+      // Try to read from transmute.json
+      final transmuteFile = File(Constants.transmuteDefintionFile);
+      if (transmuteFile.existsSync()) {
+        try {
+          final data = jsonDecode(transmuteFile.readAsStringSync()) as Map<String, dynamic>;
+          final saved = data[Constants.brandSourceDirectoryKey];
+          if (saved != null && saved is String && saved.isNotEmpty) {
+            brandDir = saved;
+            print('Using brand directory from ${Constants.transmuteDefintionFile}: ${brandDir.brightCyan}'.brightGreen);
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Load and validate post-switch operations
+    final postOps = TransmuteOperationRunner.loadAndMergePostSwitchOperations();
+    final validationError = TransmuteOperationRunner.validatePostSwitchOperations(postOps);
+    if (validationError != null) {
+      print('Error in post_switch_operations: $validationError'.brightRed);
+      return;
+    }
+
+    FlutterAppTransmuter.executePostProcess(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, enabledFlags: enabledFlags, excludedSteps: excludedSteps, postSwitchOperations: postOps, brandDir: brandDir);
   }
 }
 
@@ -479,11 +597,21 @@ bool _checkBrandDirConsistency(String cmdBrandDir) {
       print('Mismatch: command-line brand directory does not match ${Constants.brandSourceDirectoryKey} in ${Constants.transmuteDefintionFile}.'.brightRed);
       print('  command-line: ${cmdBrandDir.brightCyan}'.brightRed);
       print('  transmute.json: ${saved.toString().brightCyan}'.brightRed);
-      stdout.write('Continue anyway? (y/N): '.brightYellow);
-      final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-      if (response != 'y' && response != 'yes') {
-        print('Aborted.'.brightYellow);
+      if (FlutterAppTransmuter.autoYes) {
+        print('Continuing anyway (--yes).'.brightYellow);
+      } else if (FlutterAppTransmuter.autoSkip) {
+        print('Aborted (--skip).'.brightYellow);
         return false;
+      } else if (FlutterAppTransmuter.fatalPrompts) {
+        print('Error: Brand directory mismatch with --fatal-prompts.'.brightRed);
+        exit(1);
+      } else {
+        stdout.write('Continue anyway? (y/N): '.brightYellow);
+        final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+        if (response != 'y' && response != 'yes') {
+          print('Aborted.'.brightYellow);
+          return false;
+        }
       }
     }
   } catch (_) {

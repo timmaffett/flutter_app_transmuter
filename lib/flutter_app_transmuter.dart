@@ -13,6 +13,13 @@ class FlutterAppTransmuter {
 
   static bool executingDryRun = false;
   static int verboseDebug = 0;
+  static bool autoYes = false;
+  static bool autoSkip = false;
+  static bool autoBrandFile = false;
+  static bool autoProjectFile = false;
+  static bool autoTransmuteValue = false;
+  static bool autoFileValue = false;
+  static bool fatalPrompts = false;
 
   /// Start the process to rebrand application with
   /// the provided transmute.json file
@@ -133,6 +140,12 @@ class FlutterAppTransmuter {
     print('');
     print('Step 3: Running post-switch operations...'.brightGreen);
     TransmuteOperationRunner.executePostSwitchOperations(postSwitchOperations, enabledFlags, excludedSteps: excludedSteps, brandDir: newBrandDir);
+  }
+
+  static void executePostProcess({required bool executeDryRun, required int verboseDebugLevel, Set<String> enabledFlags = const {}, Set<String> excludedSteps = const {}, required List<PostSwitchOperation> postSwitchOperations, String? brandDir}) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+    TransmuteOperationRunner.executePostSwitchOperations(postSwitchOperations, enabledFlags, excludedSteps: excludedSteps, brandDir: brandDir);
   }
 
   static void statusBrand({required bool executeDryRun, required int verboseDebugLevel}) {

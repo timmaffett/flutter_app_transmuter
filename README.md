@@ -105,7 +105,7 @@ All commands are run from your Flutter project root:
 dart run flutter_app_transmuter:main <options>
 ```
 
-Operations are **mutually exclusive** — only one can be specified per invocation.
+Operations are **mutually exclusive** — only one can be specified per invocation. (Operations: `--status`, `--check`, `--verify`, `--transmute`, `--copy`, `--diff`, `--update`, `--switch`, `--executepostprocess`)
 
 ---
 
@@ -235,8 +235,11 @@ dart run flutter_app_transmuter:main --update
 # Specify a directory explicitly
 dart run flutter_app_transmuter:main --update=../brands/acme
 
-# Auto-confirm all prompts
+# Auto-confirm all prompts (copy project->brand for all diffs)
 dart run flutter_app_transmuter:main --update --yes
+
+# Non-interactive: use project files, apply transmute values
+dart run flutter_app_transmuter:main --update --projectfile --transmutevalue
 ```
 
 For each changed file, you're prompted whether to update the brand copy. If the brand file is **newer** than the project file, a timestamp warning is shown with options:
@@ -257,16 +260,19 @@ After file updates, a transmute check runs to verify values and optionally updat
 Switch from the current brand to a new one. This is the most comprehensive operation.
 
 ```bash
-# Basic switch
+# Basic switch (interactive prompts)
 dart run flutter_app_transmuter:main --switch ../brands/newbrand
 
+# Non-interactive: use project files, apply transmute values
+dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue
+
 # With post-switch flags
-dart run flutter_app_transmuter:main --switch ../brands/newbrand +flutterfire +build
+dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue +flutterfire +build
 
 # Exclude specific post-switch steps
-dart run flutter_app_transmuter:main --switch ../brands/newbrand -clean -pub_get
+dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue -clean -pub_get
 
-# Auto-confirm all prompts
+# Auto-confirm everything (yes to all prompts, project->brand for file diffs)
 dart run flutter_app_transmuter:main --switch ../brands/newbrand --yes
 ```
 
@@ -299,6 +305,33 @@ Use `-` prefix to skip specific post-switch steps:
 | `-remove_derived_data` | Skip `ios_remove_derived_data` (macOS only step) |
 | `-ios_remove_derived_data` | Same as above (full name also works) |
 | `-transmute_command` | Skip the internal transmute step |
+
+---
+
+### `--executepostprocess` / `--executepostprocess=<brand_dir>`
+
+Run only the post-switch operations pipeline without performing a full brand switch. This skips the "update current brand" and "copy new brand" steps, and goes straight to executing the post-switch operations (transmute, rebuild icons, clean, etc.).
+
+```bash
+# Run post-switch pipeline (uses brand_source_directory from transmute.json for $brand_dir)
+dart run flutter_app_transmuter:main --executepostprocess
+
+# Specify a brand directory explicitly (for $brand_dir substitution in commands)
+dart run flutter_app_transmuter:main --executepostprocess=../brands/acme
+
+# With flags and step exclusions (same syntax as --switch)
+dart run flutter_app_transmuter:main --executepostprocess +flutterfire -clean
+
+# Skip the transmute step, only run launcher icons and clean
+dart run flutter_app_transmuter:main --executepostprocess -transmute_command -native_splash -pub_get
+```
+
+This is useful when:
+- You need to re-run the post-switch pipeline after a failed or interrupted `--switch`
+- You want to run specific post-switch steps (e.g., regenerate launcher icons) without switching brands
+- You're debugging or testing the post-switch pipeline
+
+The same `+flag` and `-stepname` options used with `--switch` work here. See [Post-Switch Flags](#post-switch-flags-flag) and [Excluding Steps](#excluding-steps--stepname) above.
 
 ---
 
@@ -336,11 +369,43 @@ These options modify the behavior of the primary operations:
 
 | Option | Description |
 |--------|-------------|
-| `--yes` | Auto-confirm all interactive prompts |
+| `--yes` | Auto-confirm all prompts (answer Y to yes/no, copy project->brand for file diffs) |
+| `--skip` | Auto-answer N (skip/no change) to any prompt |
+| `--brandfile` | Auto-answer B (use brand file) for brand/project file conflict prompts |
+| `--projectfile` | Auto-answer P (use project file) for brand/project file conflict prompts |
+| `--transmutevalue` | Auto-answer T (use transmute.json value) for transmute/file mismatch prompts |
+| `--filevalue` | Auto-answer F (use file value) for transmute/file mismatch prompts |
+| `--fatal-prompts` | Exit with error if any interactive prompt is encountered |
 | `--dryrun` | Preview mode — no files are written to disk |
 | `--debug` | Enable debug output (equivalent to `--verbose=1`) |
 | `--verbose=<N>` | Set verbose debug level (0=off, 1+=debug detail) |
 | `--help` / `--usage` | Show command line help |
+
+#### Auto-Answer Prompt Options
+
+The auto-answer options give you fine-grained control over how interactive prompts are handled:
+
+**File conflict prompts** (B/P/N) — shown when brand and project files differ during `--update`:
+- `--brandfile` — Always use the brand file (answer B)
+- `--projectfile` — Always use the project file (answer P)
+- `--skip` — Always skip (answer N)
+
+**Transmute mismatch prompts** (T/F/N) — shown when file values don't match transmute.json during `--verify`:
+- `--transmutevalue` — Always use the transmute.json value (answer T)
+- `--filevalue` — Always use the current file value (answer F)
+- `--skip` — Always skip (answer N)
+
+**General behavior:**
+- `--yes` — Auto-confirm yes/no prompts and copy project->brand for all file diffs
+- `--skip` — Answer N/skip to any prompt that has a skip option
+- `--fatal-prompts` — Exit with error code 1 if any prompt would be shown that isn't already auto-answered by another option
+
+**Mutually exclusive pairs:**
+- `--yes` and `--skip` cannot be used together
+- `--brandfile` and `--projectfile` cannot be used together
+- `--transmutevalue` and `--filevalue` cannot be used together
+
+**Precedence:** More specific options take priority. For example, `--yes --transmutevalue` will auto-confirm yes/no prompts (via `--yes`) but answer T to mismatch prompts (via `--transmutevalue`, overriding `--yes`'s default of N for mismatches). `--fatal-prompts` only triggers for prompts not already handled by another auto-answer option.
 
 ---
 
@@ -681,7 +746,13 @@ dart run flutter_app_transmuter:main --verify
 ### Automate in CI/Scripts
 
 ```bash
-# Non-interactive brand switch for CI
+# Non-interactive brand switch for CI (use project files, apply transmute values)
+dart run flutter_app_transmuter:main --switch ../brands/release_brand --projectfile --transmutevalue +build
+
+# Strict CI mode: fail if any unexpected prompt is encountered
+dart run flutter_app_transmuter:main --switch ../brands/release_brand --projectfile --transmutevalue --fatal-prompts +build
+
+# Or use --yes for full auto-confirm
 dart run flutter_app_transmuter:main --switch ../brands/release_brand --yes +build
 ```
 
@@ -698,3 +769,9 @@ Distributed under the MIT license.
 ## 🙏 Acknowledgements
 
 Originally forked from [flutter_app_rebrand](https://github.com/sarj33t/flutter_app_rebrand) by sarj33t.
+
+
+## Dev Notes
+
+- to activate from local copy of repo, allowing you to use 'transmute' command using the current source
+    `dart pub global activate --source path .`

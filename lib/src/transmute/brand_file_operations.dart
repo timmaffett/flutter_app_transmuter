@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:chalkdart/chalkstrings.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
+import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 
@@ -215,8 +216,24 @@ class BrandFileOperations {
           updated++;
         } else {
           if (brandIsNewer) {
-            stdout.write('  (B) use brand file -> project, (P) use project file -> brand, or (N) skip (default N): '.brightYellow);
-            final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+            String response;
+            if (FlutterAppTransmuter.autoBrandFile) {
+              response = 'b';
+              print('  Auto-answering B (--brandfile)'.brightYellow);
+            } else if (FlutterAppTransmuter.autoProjectFile) {
+              response = 'p';
+              print('  Auto-answering P (--projectfile)'.brightYellow);
+            } else if (FlutterAppTransmuter.autoSkip) {
+              response = 'n';
+              print('  Auto-skipping (--skip)'.brightYellow);
+            } else if (FlutterAppTransmuter.fatalPrompts) {
+              print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+              response = 'n';
+              exit(1);
+            } else {
+              stdout.write('  (B) use brand file -> project, (P) use project file -> brand, or (N) skip (default N): '.brightYellow);
+              response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+            }
             if (response == 'b') {
               FileUtils.copyFile(brandPath, projectPath);
               print('  UPDATED PROJECT: $brandPath -> ${projectPath.brightGreen}'.brightGreen);
@@ -230,9 +247,23 @@ class BrandFileOperations {
               skipped++;
             }
           } else {
-            stdout.write('  Update brand file ${mapping.source.brightCyan} from $projectPath? (y/N): '.brightYellow);
-            final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-            if (response == 'y' || response == 'yes') {
+            bool doUpdate;
+            if (FlutterAppTransmuter.autoProjectFile) {
+              doUpdate = true;
+              print('  Auto-updating brand from project (--projectfile)'.brightYellow);
+            } else if (FlutterAppTransmuter.autoBrandFile || FlutterAppTransmuter.autoSkip) {
+              doUpdate = false;
+              print('  Auto-skipping (${FlutterAppTransmuter.autoBrandFile ? '--brandfile' : '--skip'})'.brightYellow);
+            } else if (FlutterAppTransmuter.fatalPrompts) {
+              print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+              doUpdate = false;
+              exit(1);
+            } else {
+              stdout.write('  Update brand file ${mapping.source.brightCyan} from $projectPath? (y/N): '.brightYellow);
+              final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+              doUpdate = response == 'y' || response == 'yes';
+            }
+            if (doUpdate) {
               FileUtils.copyFile(projectPath, brandPath);
               print('  UPDATED: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
               updated++;
@@ -294,14 +325,26 @@ class BrandFileOperations {
     print('  pubspec.yaml version:              ${pubspecVersion.brightCyan}');
     print('  transmute.json pubspec_version:     ${transmuteVersion.brightCyan}');
 
-    final comparison = _compareVersions(pubspecVersion, transmuteVersion);
+    final comparison = compareVersions(pubspecVersion, transmuteVersion);
     if (comparison > 0) {
       print('  pubspec.yaml version is NEWER'.brightGreen);
       bool doUpdate = autoConfirm;
       if (!autoConfirm) {
-        stdout.write('  Update pubspec_version in $transmuteJsonPath to ${pubspecVersion.brightCyan}? (y/N): '.brightYellow);
-        final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-        doUpdate = response == 'y' || response == 'yes';
+        if (FlutterAppTransmuter.autoProjectFile) {
+          doUpdate = true;
+          print('  Auto-updating (--projectfile)'.brightYellow);
+        } else if (FlutterAppTransmuter.autoBrandFile || FlutterAppTransmuter.autoSkip) {
+          doUpdate = false;
+          print('  Auto-skipping (${FlutterAppTransmuter.autoBrandFile ? '--brandfile' : '--skip'})'.brightYellow);
+        } else if (FlutterAppTransmuter.fatalPrompts) {
+          print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+          doUpdate = false;
+          exit(1);
+        } else {
+          stdout.write('  Update pubspec_version in $transmuteJsonPath to ${pubspecVersion.brightCyan}? (y/N): '.brightYellow);
+          final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+          doUpdate = response == 'y' || response == 'yes';
+        }
       }
       if (doUpdate) {
         transmuteData[TransmuterKeys.pubspecVersion.key] = pubspecVersion;
@@ -321,7 +364,7 @@ class BrandFileOperations {
 
   /// Compares two Flutter version strings (e.g. "1.2.3+4").
   /// Returns positive if a > b, negative if a < b, 0 if equal.
-  static int _compareVersions(String a, String b) {
+  static int compareVersions(String a, String b) {
     final aParts = a.split('+');
     final bParts = b.split('+');
 
