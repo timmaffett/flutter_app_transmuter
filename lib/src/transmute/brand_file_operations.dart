@@ -115,6 +115,14 @@ class BrandFileOperations {
       final updatedJson = encoder.convert(data);
       FileUtils.writeStringToFilename(transmuteJsonPath, '$updatedJson\n');
       print('Set ${Constants.brandSourceDirectoryKey} to "${relativeBrandDir.brightCyan}" in $transmuteJsonPath'.brightGreen);
+
+      // Also update the brand directory's copy so they stay in sync.
+      // This prevents a spurious DIFFERENT prompt on the next --switch or --update.
+      final brandTransmuteJsonPath = path.join(brandDir, Constants.transmuteDefintionFile);
+      if (FileUtils.fileExists(brandTransmuteJsonPath)) {
+        FileUtils.writeStringToFilename(brandTransmuteJsonPath, '$updatedJson\n');
+        print('Synced ${Constants.brandSourceDirectoryKey} to brand copy at $brandTransmuteJsonPath'.brightGreen);
+      }
     } catch (ex) {
       print('Warning: Could not inject ${Constants.brandSourceDirectoryKey} into $transmuteJsonPath: $ex'.brightYellow);
     }

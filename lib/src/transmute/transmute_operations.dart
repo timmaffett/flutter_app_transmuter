@@ -955,6 +955,8 @@ class TransmuteOperationRunner {
         final result = Process.runSync(
           isWindows ? 'cmd' : 'sh',
           isWindows ? ['/c', command] : ['-c', command],
+          stdoutEncoding: utf8,
+          stderrEncoding: utf8,
         );
 
         final stdoutStr = result.stdout.toString().trim();
