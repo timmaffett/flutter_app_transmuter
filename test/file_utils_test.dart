@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:io' show Directory, File, Platform;
 import 'package:test/test.dart';
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
@@ -278,6 +278,45 @@ void main() {
       final regex = RegExp(r'^version:\s*(.+)$', multiLine: true);
       FileUtils.replaceInFileRegex('version', path, regex, 'version: 2.0.0');
       expect(File(path).readAsStringSync(), 'version: 1.0.0');
+    });
+  });
+
+  // -----------------------------------------------------------
+  // toPosixPath
+  // -----------------------------------------------------------
+  group('toPosixPath', () {
+    test('converts backslashes to forward slashes', () {
+      expect(FileUtils.toPosixPath(r'..\brands\acme'), '../brands/acme');
+    });
+
+    test('leaves forward-slash paths unchanged', () {
+      expect(FileUtils.toPosixPath('../brands/acme'), '../brands/acme');
+    });
+
+    test('handles mixed separators', () {
+      expect(FileUtils.toPosixPath(r'..\brands/acme\files'), '../brands/acme/files');
+    });
+
+    test('handles empty string', () {
+      expect(FileUtils.toPosixPath(''), '');
+    });
+  });
+
+  // -----------------------------------------------------------
+  // toNativePath
+  // -----------------------------------------------------------
+  group('toNativePath', () {
+    test('returns platform-appropriate path', () {
+      final result = FileUtils.toNativePath('../brands/acme');
+      if (Platform.isWindows) {
+        expect(result, r'..\brands\acme');
+      } else {
+        expect(result, '../brands/acme');
+      }
+    });
+
+    test('handles empty string', () {
+      expect(FileUtils.toNativePath(''), '');
     });
   });
 }

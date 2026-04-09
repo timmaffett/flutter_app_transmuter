@@ -493,7 +493,7 @@ void main(List<String> args) async {
           final data = jsonDecode(transmuteFile.readAsStringSync()) as Map<String, dynamic>;
           final saved = data[Constants.brandSourceDirectoryKey];
           if (saved != null && saved is String && saved.isNotEmpty) {
-            brandDir = saved;
+            brandDir = FileUtils.toNativePath(saved);
             print('Using brand directory from ${Constants.transmuteDefintionFile}: ${brandDir.brightCyan}'.brightGreen);
           }
         } catch (_) {}
@@ -553,7 +553,7 @@ String? _resolveBrandDir(String argValue) {
         print('Use --copy first to set it, or provide a directory: --diff=<brand_dir>'.brightYellow);
         return null;
       }
-      brandDir = saved;
+      brandDir = FileUtils.toNativePath(saved);
       print('Using brand directory from ${Constants.transmuteDefintionFile}: ${brandDir.brightCyan}'.brightGreen);
     } catch (ex) {
       print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
@@ -587,9 +587,10 @@ bool _checkBrandDirConsistency(String cmdBrandDir) {
       return true;
     }
 
-    // Normalize paths for comparison
-    final normalizedCmd = path.normalize(cmdBrandDir);
-    final normalizedSaved = path.normalize(saved);
+    // Normalize both paths to POSIX for comparison (saved is already POSIX,
+    // but cmdBrandDir may use native separators on Windows)
+    final normalizedCmd = FileUtils.toPosixPath(path.normalize(cmdBrandDir));
+    final normalizedSaved = FileUtils.toPosixPath(path.normalize(saved));
 
     if (normalizedCmd == normalizedSaved) {
       print('Brand directory matches ${Constants.brandSourceDirectoryKey} in ${Constants.transmuteDefintionFile}.'.brightGreen);

@@ -114,7 +114,7 @@ class FlutterAppTransmuter {
         print('You must have a current brand set (via --copy) before switching to a new brand.'.brightYellow);
         return;
       }
-      currentBrandDir = saved;
+      currentBrandDir = FileUtils.toNativePath(saved);
     } catch (ex) {
       print('Error reading ${Constants.transmuteDefintionFile}: $ex'.brightRed);
       return;
@@ -161,12 +161,13 @@ class FlutterAppTransmuter {
       final contents = File(Constants.transmuteDefintionFile).readAsStringSync();
       final data = jsonDecode(contents) as Map<String, dynamic>;
 
-      final brandDir = data[Constants.brandSourceDirectoryKey];
+      final brandDirRaw = data[Constants.brandSourceDirectoryKey];
 
-      if (brandDir == null || brandDir is! String || brandDir.isEmpty) {
+      if (brandDirRaw == null || brandDirRaw is! String || brandDirRaw.isEmpty) {
         print('No "${Constants.brandSourceDirectoryKey}" key found in ${Constants.transmuteDefintionFile}.'.brightYellow);
         print('This key is automatically set when using --copy. You can also add it manually.'.brightYellow);
       } else {
+        final brandDir = FileUtils.toNativePath(brandDirRaw);
         print('Brand source directory: ${brandDir.brightCyan}'.brightGreen);
 
         if (!Directory(brandDir).existsSync()) {

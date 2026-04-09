@@ -108,7 +108,7 @@ class BrandFileOperations {
       if (contents == null) return;
 
       final data = jsonDecode(contents) as Map<String, dynamic>;
-      final relativeBrandDir = path.relative(brandDir);
+      final relativeBrandDir = FileUtils.toPosixPath(path.relative(brandDir));
       data[Constants.brandSourceDirectoryKey] = relativeBrandDir;
 
       final encoder = JsonEncoder.withIndent('  ');

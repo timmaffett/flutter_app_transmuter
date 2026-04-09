@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:chalkdart/chalkstrings.dart';
+import 'package:path/path.dart' as path;
 
 
 /// Prints a message with each character colored in a rainbow hue cycle using HSL.
@@ -145,6 +146,19 @@ OBSOLETE UNUSED */
       destDir.createSync(recursive: true);
     }
     File(sourcePath).copySync(destPath);
+  }
+
+  /// Converts a path to POSIX format (forward slashes) for storage in JSON.
+  /// This ensures transmute.json is identical regardless of which OS wrote it.
+  /// Uses path.windows to split (recognizes both \ and / separators) then
+  /// path.posix to join, guaranteeing forward slashes on any platform.
+  static String toPosixPath(String p) {
+    return path.posix.joinAll(path.windows.split(p));
+  }
+
+  /// Converts a POSIX-stored path to the native platform format.
+  static String toNativePath(String posixPath) {
+    return path.joinAll(path.posix.split(posixPath));
   }
 
   static bool compareFiles(String pathA, String pathB) {
