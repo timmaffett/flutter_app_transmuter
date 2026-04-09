@@ -2,7 +2,7 @@
 
 **Automate Flutter app rebranding across Android and iOS — driven by JSON configuration and customizable YAML operations.**
 
-Flutter App Transmuter updates package names, bundle identifiers, app display names, Google Maps API keys, pubspec versions, and more — all from a single `transmute.json` file. It also provides a complete **brand management workflow** for maintaining multiple branded variants of the same app.
+Flutter App Transmuter updates package names, bundle identifiers, app display names, Google API keys, pubspec versions, and more — all from a single `transmute.json` file. It also provides a complete **brand management workflow** for maintaining multiple branded variants of the same app.
 
 Because all operations are defined as regex-based transformations in YAML, the built-in defaults are just a starting point — you can add, override, or disable operations to perform virtually **any text-based transformation** on any file in your Flutter project. If a value lives in a config file, manifest, plist, or source file and can be matched with a regex, Flutter App Transmuter can update it. The post-switch operations pipeline can also **run arbitrary shell commands and Dart packages** as part of the workflow — for example, the defaults include running `flutter_launcher_icons` for app icons, `flutter_native_splash` for splash screens, `flutterfire configure` for Firebase setup, and platform builds — all orchestrated as a single brand-switch operation.
 
@@ -13,7 +13,7 @@ Because all operations are defined as regex-based transformations in YAML, the b
 - 📦 **Package Name & Bundle ID** — Update Android package name and iOS bundle identifier in one step
 - 🏷️ **App Display Name** — Change the app name on both platforms simultaneously
 - 📂 **MainActivity Relocation** — Automatically moves `MainActivity.java`/`.kt` to the correct package directory
-- 🗺️ **Google Maps API Keys** — Update API keys in `AndroidManifest.xml` and `AppDelegate.swift`
+- 🔑 **API Key Management** — Swap API keys per brand across platform config files, such as Google Maps SDK keys in `AndroidManifest.xml` and `AppDelegate.swift`
 - 📋 **Version Management** — Set `pubspec.yaml` version from your brand configuration
 - 🔄 **Brand Switching** — Switch between branded app variants with full file management
 - 🔧 **Customizable Operations** — Override, extend, or disable any operation via YAML
