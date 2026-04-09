@@ -3,8 +3,6 @@ import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 import 'package:chalkdart/chalkstrings.dart';
-import 'package:chalkdart/chalk_X11.dart';
-import 'package:path/path.dart' as path;
 /*
 
 GOOGLE MAPS API KEY Replace REGEX
@@ -166,7 +164,7 @@ OBSOLETE UNUSED */
     var extension = type == 'java' ? 'java' : 'kt';
     print(androidColor('Project is using $type'));
     print(androidColor('Updating MainActivity.$extension'));
-    FileUtils.replaceInFileRegex('`package XYZ` in ${path.path}', path.path, RegExConstants.packageInMainActivity, "package $newPackageName");
+    FileUtils.replaceInFileRegex('`package XYZ` in ${path.path}', path.path, RegExConstants.packageInMainActivity, 'package $newPackageName');
 
     String newPackagePath = newPackageName.replaceAll('.', '/');
     String newPath = '${Constants.androidActivityPath}$type/$newPackagePath';

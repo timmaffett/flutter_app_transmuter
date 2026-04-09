@@ -16,8 +16,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:chalkdart/chalkstrings.dart';
 import 'package:args/args.dart';
-import 'package:glob/glob.dart';
-import 'package:glob/list_local_fs.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter_app_transmuter/flutter_app_transmuter.dart';
 import 'package:flutter_app_transmuter/src/transmute/constants.dart';

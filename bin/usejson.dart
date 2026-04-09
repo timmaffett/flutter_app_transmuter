@@ -53,7 +53,7 @@ void copyFileWithMetadata(String sourcePath, String destinationPath) {
     final sourceFile = File(sourcePath);
 
     if (!sourceFile.existsSync()) {
-      throw FileSystemException("Source file not found", sourcePath);
+      throw FileSystemException('Source file not found', sourcePath);
     }
 
     // Copy the file content.
@@ -102,22 +102,22 @@ void main() {
     copyFilesFromJson(jsonFilePath);
 
     // Verify files were copied (optional)
-    print("Files copied, verifying...");
+    print('Files copied, verifying...');
     final destinationFile1 = File('destination_dir/copied_file.txt');
     final destinationFile2 = File('another_dir/source2.txt');
     final destinationFile3 = File('another_dir/source3.txt');
 
     if(destinationFile1.existsSync()){
-      print("destination_dir/copied_file.txt exists");
+      print('destination_dir/copied_file.txt exists');
     }
     if(destinationFile2.existsSync()){
-      print("another_dir/source2.txt exists");
+      print('another_dir/source2.txt exists');
     }
     if(destinationFile3.existsSync()){
-      print("another_dir/source3.txt exists");
+      print('another_dir/source3.txt exists');
     }
 
-    print("Test Complete. Results remain in destination_dir and another_dir.");
+    print('Test Complete. Results remain in destination_dir and another_dir.');
 
   } catch (e) {
     print('An error occurred: $e');

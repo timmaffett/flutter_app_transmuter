@@ -6,7 +6,7 @@ void copyFileWithMetadataBROKEN(String sourcePath, String destinationPath) {
     final destinationFile = File(destinationPath);
 
     if (!sourceFile.existsSync()) {
-      throw FileSystemException("Source file not found", sourcePath);
+      throw FileSystemException('Source file not found', sourcePath);
     }
 
     // Copy the file content.
@@ -35,7 +35,7 @@ void copyFileWithMetadata(String sourcePath, String destinationPath) {
     final sourceFile = File(sourcePath);
 
     if (!sourceFile.existsSync()) {
-      throw FileSystemException("Source file not found", sourcePath);
+      throw FileSystemException('Source file not found', sourcePath);
     }
 
     // Copy the file content.
@@ -75,13 +75,13 @@ Future<void> main() async {
     final destinationStat = destinationFile.statSync();
     final sourceStat = sourceFile.statSync();
 
-    print("Source modified: ${sourceStat.modified}");
-    print("Destination modified: ${destinationStat.modified}");
+    print('Source modified: ${sourceStat.modified}');
+    print('Destination modified: ${destinationStat.modified}');
 
     if(sourceStat.modified == destinationStat.modified){
-      print("Modified dates match!");
+      print('Modified dates match!');
     } else {
-      print("Modified dates DO NOT match!");
+      print('Modified dates DO NOT match!');
     }
 
     //Clean up test files.

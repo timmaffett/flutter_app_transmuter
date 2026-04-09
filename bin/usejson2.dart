@@ -25,7 +25,7 @@ void copyFilesFromJson(String jsonFilePath) {
 
       print('sourceFileName=$sourceFileName  absolute=${p.isAbsolute(sourceFileName)}  dirname=${p.dirname(sourceFileName)}');
 
-      if (!p.isAbsolute(sourceFileName) && (p.dirname(sourceFileName) == "." && !sourceFilePath.startsWith('.')) ) { //if not absolute and no directory, prepend jsonDirectory
+      if (!p.isAbsolute(sourceFileName) && (p.dirname(sourceFileName) == '.' && !sourceFilePath.startsWith('.')) ) { //if not absolute and no directory, prepend jsonDirectory
           sourceFilePath = p.join(jsonDirectory, sourceFileName);
       }
 
@@ -58,7 +58,7 @@ void copyFileWithMetadata(String sourcePath, String destinationPath) {
     final sourceFile = File(sourcePath);
 
     if (!sourceFile.existsSync()) {
-      throw FileSystemException("Source file not found", sourcePath);
+      throw FileSystemException('Source file not found', sourcePath);
     }
 
     sourceFile.copySync(destinationPath);
@@ -85,7 +85,7 @@ void main(List<String> arguments) {
 
   try {
     copyFilesFromJson(jsonFilePath);
-    print("Copy process completed.");
+    print('Copy process completed.');
 
   } catch (e) {
     print('An error occurred: $e');
