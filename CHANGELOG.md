@@ -4,6 +4,7 @@
 
 * Changed `brand_source_directory` property to use POSIX paths, regardless of platform, to ensure
   uniformity of paths between ios and windows.
+* Clean up old test/development code and experiments.
 
 ## 2.1.0
 
