@@ -58,46 +58,6 @@ bool executeDryRun = false;
 bool debugScripts = false;
 String rootDir = './bin';
 
-//NOTAPPLICABLE//// We need to get to the files of the LATEST material_symbols_icons package that is in the pub cache
-//NOTAPPLICABLE//String getRootPathsToLatestInstalledPackage() {
-//NOTAPPLICABLE//  final pathToScript = Platform.script.toFilePath();
-//NOTAPPLICABLE//  rootDir = path.dirname(pathToScript);
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  // following for testing
-//NOTAPPLICABLE//  if (!rootDir.contains('global_packages')) {
-//NOTAPPLICABLE//    rootDir =
-//NOTAPPLICABLE//        r"C:\Users\Tim\AppData\Local\Pub\Cache\global_packages\dart_frog_cli\bin";
-//NOTAPPLICABLE//  }
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  String pubDevPackagesDir =
-//NOTAPPLICABLE//      path.join(rootDir, '..', '..', '..', 'hosted', 'pub.dev');
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  if (debugScripts) print('pubDevPackagesDir=$pubDevPackagesDir');
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  final packageDirs =
-//NOTAPPLICABLE//      Glob('material_symbols_icons-*', caseSensitive: false, recursive: false);
-//NOTAPPLICABLE//  final baseToChop = 'material_symbols_icons-';
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  final listFSE = packageDirs.listSync(root: pubDevPackagesDir);
-//NOTAPPLICABLE//  String highestVersion = '4.2600.0';
-//NOTAPPLICABLE//  String latestPackageDir = '';
-//NOTAPPLICABLE//
-//NOTAPPLICABLE//  for (final fse in listFSE) {
-//NOTAPPLICABLE//    String dirName = fse.basename;
-//NOTAPPLICABLE//    String version = dirName.substring(baseToChop.length);
-//NOTAPPLICABLE//    if (debugScripts) print('Found directory $dirName version=$version');
-//NOTAPPLICABLE//    if (version.length >= 8) {
-//NOTAPPLICABLE//      if (version.compareTo(highestVersion) > 0) {
-//NOTAPPLICABLE//        highestVersion = version;
-//NOTAPPLICABLE//        latestPackageDir = fse.path;
-//NOTAPPLICABLE//      }
-//NOTAPPLICABLE//    }
-//NOTAPPLICABLE//  }
-//NOTAPPLICABLE//  if (debugScripts) print('Highest Version = $highestVersion');
-//NOTAPPLICABLE//  if (debugScripts) print('latestPackageDir = $latestPackageDir');
-//NOTAPPLICABLE//  return path.join(latestPackageDir, 'bin');
-//NOTAPPLICABLE//}
-
 void main(List<String> args) async {
   final parser = ArgParser()
     ..addFlag(

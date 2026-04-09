@@ -4,6 +4,8 @@
 
 Flutter App Transmuter updates package names, bundle identifiers, app display names, Google Maps API keys, pubspec versions, and more — all from a single `transmute.json` file. It also provides a complete **brand management workflow** for maintaining multiple branded variants of the same app.
 
+Because all operations are defined as regex-based transformations in YAML, the built-in defaults are just a starting point — you can add, override, or disable operations to perform virtually **any text-based transformation** on any file in your Flutter project. If a value lives in a config file, manifest, plist, or source file and can be matched with a regex, Flutter App Transmuter can update it. The post-switch operations pipeline can also **run arbitrary shell commands and Dart packages** as part of the workflow — for example, the defaults include running `flutter_launcher_icons` for app icons, `flutter_native_splash` for splash screens, `flutterfire configure` for Firebase setup, and platform builds — all orchestrated as a single brand-switch operation.
+
 ---
 
 ## ✨ Features
@@ -768,8 +770,9 @@ Distributed under the MIT license.
 
 ## 🙏 Acknowledgements
 
-Originally forked from [flutter_app_rebrand](https://github.com/sarj33t/flutter_app_rebrand) by sarj33t.
-
+Originally forked from [flutter_app_rebrand](https://github.com/sarj33t/flutter_app_rebrand) by sarj33t, it no
+longer shares much of the original code, but flutter_app_rebrand was the tool that inspired me to create
+`flutter_app_transmuter` in the first place.
 
 ## Dev Notes
 
