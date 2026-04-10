@@ -10,15 +10,16 @@ Because all operations are defined as regex-based transformations in YAML, the b
 
 ## ✨ Features
 
-- 📦 **Package Name & Bundle ID** — Update Android package name and iOS bundle identifier in one step
+- 🔄 **Brand Switching** — Switch between branded app variants with full file management
+- 📄 **Whole-File Swapping** — Replace entire source files, configs, and assets per brand via `master_transmute.yaml`
+- 📦 **Package Name & Bundle ID** — Change Android package name and iOS bundle identifiers (where-ever that may reside within different flutter version's platform files (AndroidManifest.xml/build.gradle.kts/etc.))
 - 🏷️ **App Display Name** — Change the app name on both platforms simultaneously
-- 📂 **MainActivity Relocation** — Automatically moves `MainActivity.java`/`.kt` to the correct package directory
+- 📂 **MainActivity Relocation** — Automatically moves/renames `MainActivity.java`/`.kt` to the correct package directories
 - 🔑 **API Key Management** — Swap API keys per brand across platform config files, such as Google Maps SDK keys in `AndroidManifest.xml` and `AppDelegate.swift`
 - 📋 **Version Management** — Set `pubspec.yaml` version from your brand configuration
-- 🔄 **Brand Switching** — Switch between branded app variants with full file management
 - 🔧 **Customizable Operations** — Override, extend, or disable any operation via YAML
-- 🏃 **Dry Run Mode** — Preview all changes without modifying any files
-- ✅ **Verification** — Check that project files match your transmute configuration
+- 🏃 **Dry Run Mode** — Preview all changes/differences without modifying any files
+- ✅ **Verification** — When switching between brands check that project files match your transmute configuration and/or changes made to brand files within the 'live' source project are copied back to the brand directory
 
 ---
 
@@ -58,6 +59,8 @@ dart run flutter_app_transmuter:main --transmute
 ```
 
 That's it! All Android and iOS configuration files will be updated to match.
+
+> **Want to see brand switching in action?** Check out the [`example/`](example/) directory, which includes 3 complete brand variants (Acme Corp, Globex Industries, Initech Solutions) — each with its own app icon, splash screen, logo, and configuration. The [example README](example/README.md) walks you through switching between brands.  You can switch between brands and run each brand's app version side by side from your IDE.
 
 ---
 
@@ -612,29 +615,63 @@ my_flutter_app/
 ├── transmute_operations.yaml   # Optional custom operations
 ├── pubspec.yaml
 ├── lib/
+│   └── client/
+│       ├── config.dart         # ← swapped per brand (different API endpoints, feature flags)
+│       └── theme.dart          # ← swapped per brand (different colors, fonts, spacing)
 ├── android/
+│   └── app/
+│       └── google-services.json  # ← swapped per brand (different Firebase project)
 ├── ios/
+│   └── Runner/
+│       └── GoogleService-Info.plist  # ← swapped per brand
 └── brands/
     ├── acme/
     │   ├── transmute.json
     │   ├── appicon_square_1024x1024.png
     │   ├── google-services.json
     │   ├── GoogleService-Info.plist
-    │   ├── config.dart
+    │   ├── config.dart          # Acme's API endpoints, feature flags
+    │   ├── theme.dart           # Acme's colors, fonts
     │   └── ...
     └── globex/
         ├── transmute.json
         ├── appicon_square_1024x1024.png
         ├── google-services.json
+        ├── GoogleService-Info.plist
+        ├── config.dart          # Globex's API endpoints, feature flags
+        ├── theme.dart           # Globex's colors, fonts
         └── ...
 ```
+
+### Swapping Entire Source Files Per Brand
+
+While regex-based transmute operations are great for changing individual values
+in config files, many real-world projects need to swap **entire files** per brand.
+This is one of the most powerful features of the brand management system.
+
+Common files to swap per brand:
+
+- **Dart source files** — `config.dart`, `theme.dart`, `constants.dart`, `routes.dart`
+  with brand-specific API endpoints, feature flags, color themes, or navigation
+- **Firebase configs** — `google-services.json` (Android) and `GoogleService-Info.plist`
+  (iOS) pointing at different Firebase projects
+- **Image assets** — app icons, splash screens, logos, onboarding images
+- **Platform configs** — `flutter_launcher_icons.yaml`, `flutter_native_splash.yaml`
+  with brand-specific settings
+- **Entitlements / provisioning** — iOS entitlements files with different app group or
+  keychain access group identifiers
+
+All of this is managed through `master_transmute.yaml` — the brand directory
+is flat (all files at the top level), and the YAML maps each file to one or
+more destinations in the project tree.
 
 ### `master_transmute.yaml`
 
 This file defines how brand files map to project locations. Place it in your project root.
 
 ```yaml
-# Files where the source filename differs from the destination
+# Files where the source filename differs from the destination,
+# or needs to be copied to multiple locations
 file_mappings:
   - source: appicon_square_1024x1024.png
     destinations:
@@ -642,16 +679,27 @@ file_mappings:
       - android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
       - assets/images/brand/app_icon.png
 
-# Files where the brand file has the same basename as the destination
+# Files where the brand file has the same basename as the destination.
+# The brand directory is flat — the basename is used to locate the
+# source file, and the full path is the destination in the project.
 files:
+  - transmute.json
   - android/app/google-services.json
   - ios/Runner/GoogleService-Info.plist
   - assets/images/brand/logo.png
-  - transmute.json
   - lib/client/config.dart
+  - lib/client/theme.dart
+  - flutter_launcher_icons.yaml
+  - flutter_native_splash.yaml
 ```
 
 The brand directory is **flat** — all source files are in one directory. The `files` section uses the basename of each path to find the source file in the brand directory.
+
+The combination of **whole-file swapping** (via `master_transmute.yaml`) and
+**regex-based value replacement** (via transmute operations) means you can
+handle everything from swapping an entire config module to changing a single
+string deep in a platform manifest — all as part of the same `--switch`
+command.
 
 ### Workflow Example
 
@@ -757,6 +805,21 @@ dart run flutter_app_transmuter:main --switch ../brands/release_brand --projectf
 # Or use --yes for full auto-confirm
 dart run flutter_app_transmuter:main --switch ../brands/release_brand --yes +build
 ```
+
+---
+
+## 🤖 AI / Agent Support
+
+This repository includes an [`AGENTS.md`](AGENTS.md) file — a structured guide
+designed for AI coding assistants (Claude Code, GitHub Copilot, Gemini, etc.)
+and autonomous agents. It provides the context an AI needs to help you set up
+brands, write custom transmute operations, configure `master_transmute.yaml`,
+and run the correct commands — without you having to explain the tool from
+scratch each time.
+
+If you use an AI assistant in your workflow, having `AGENTS.md` in the repo
+means it can understand the transmuter's concepts, commands, and pitfalls
+out of the box.
 
 ---
 

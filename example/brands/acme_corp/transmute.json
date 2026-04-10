@@ -1,0 +1,11 @@
+{
+  "packageName": "com.acmecorp.flutterapp",
+  "appName": "Acme App",
+  "iosBundleIdentifier": "com.acmecorp.flutterapp",
+  "iosBundleDisplayName": "Acme App",
+  "pubspec_version": "1.0.0+1",
+  "brand_color": "0xFFCC2222",
+  "brand_title": "Acme Corp Brand Demo",
+  "brand_name": "Acme Corp",
+  "brand_source_directory": "brands/acme_corp"
+}

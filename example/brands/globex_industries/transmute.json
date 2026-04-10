@@ -1,0 +1,11 @@
+{
+  "packageName": "com.globexindustries.flutterapp",
+  "appName": "Globex App",
+  "iosBundleIdentifier": "com.globexindustries.flutterapp",
+  "iosBundleDisplayName": "Globex App",
+  "pubspec_version": "1.0.0+1",
+  "brand_color": "0xFF2255CC",
+  "brand_title": "Globex Industries Brand Demo",
+  "brand_name": "Globex Industries",
+  "brand_source_directory": "brands/globex_industries"
+}

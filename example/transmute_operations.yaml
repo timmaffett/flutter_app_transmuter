@@ -1,0 +1,22 @@
+# Custom transmute operations for the example project.
+# These are merged with the built-in defaults by matching on 'id'.
+# This file demonstrates how to add your own regex-based text transformations.
+
+operations:
+  - id: main_dart_brand_title
+    description: "Brand title in main.dart AppBar"
+    type: regex_replace
+    platform: both
+    file: "lib/main.dart"
+    json_key: brand_title
+    regex: "const Text\\('([^']*)'\\),\\s*//BRANDNAME"
+    replacement: "const Text('$value'), //BRANDNAME"
+
+  - id: main_dart_brand_color
+    description: "Brand color in main.dart AppBar"
+    type: regex_replace
+    platform: both
+    file: "lib/main.dart"
+    json_key: brand_color
+    regex: "const Color\\((0x[0-9A-Fa-f]+)\\),\\s*//BRANDCOLOR"
+    replacement: "const Color($value), //BRANDCOLOR"

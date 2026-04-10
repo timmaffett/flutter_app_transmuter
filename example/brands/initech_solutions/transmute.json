@@ -1,0 +1,11 @@
+{
+  "packageName": "com.initechsolutions.flutterapp",
+  "appName": "Initech App",
+  "iosBundleIdentifier": "com.initechsolutions.flutterapp",
+  "iosBundleDisplayName": "Initech App",
+  "pubspec_version": "1.0.0+1",
+  "brand_color": "0xFF22AA44",
+  "brand_title": "Initech Solutions Brand Demo",
+  "brand_name": "Initech Solutions",
+  "brand_source_directory": "brands/initech_solutions"
+}
