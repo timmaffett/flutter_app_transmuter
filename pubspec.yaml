@@ -3,7 +3,7 @@ description: Transmute your Flutter application using one command from terminal.
   application changes such as rebranding, changing package and bundle ids, changing API keys in
   AndroidManifest.xml or AppDelegate.swift, swapping resources and icons,
   swapping out source files, etc.
-version: 2.1.1
+version: 2.1.2
 maintainer: Tim Maffett
 homepage: https://github.com/timmaffett/flutter_app_transmuter
 repository: https://github.com/timmaffett/flutter_app_transmuter

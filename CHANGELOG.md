@@ -1,5 +1,11 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.2
+
+* Add example app with 3 brands and documentation.
+* Add AGENTS.md file
+* Improve README.md
+
 ## 2.1.1
 
 * Changed `brand_source_directory` property to use POSIX paths, regardless of platform, to ensure
