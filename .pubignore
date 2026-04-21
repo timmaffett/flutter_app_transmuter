@@ -1,0 +1,5 @@
+# pubignore
+.vscode/*
+.vscrof/*
+  
+docs/*
