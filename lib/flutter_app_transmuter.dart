@@ -98,7 +98,7 @@ class FlutterAppTransmuter {
     executingDryRun = executeDryRun;
     verboseDebug = verboseDebugLevel;
 
-    // Step 1: Read current brand_source_directory from transmute.json
+    // Read current brand_source_directory from transmute.json
     if (!FileUtils.rebrandJSONExist()) {
       print('Error: ${Constants.transmuteDefintionFile} file not found.'.brightRed);
       return;
@@ -125,18 +125,18 @@ class FlutterAppTransmuter {
       return;
     }
 
-    // Step 2: Update current brand files from project (same as --update)
+    // Update current brand files from project (same as --update)
     print('Step 1: Updating current brand ($currentBrandDir) from project...'.brightGreen);
     print('');
     BrandFileOperations.updateBrandFiles(currentBrandDir, autoConfirm: autoConfirm);
 
-    // Step 3: Copy new brand files into the project (same as --copy)
+    // Copy new brand files into the project (same as --copy)
     print('');
     print('Step 2: Copying new brand files from $newBrandDir into project...'.brightGreen);
     print('');
     BrandFileOperations.copyBrandFiles(newBrandDir);
 
-    // Step 4: Run post-switch operations
+    // Run post-switch operations
     print('');
     print('Step 3: Running post-switch operations...'.brightGreen);
     TransmuteOperationRunner.executePostSwitchOperations(postSwitchOperations, enabledFlags, excludedSteps: excludedSteps, brandDir: newBrandDir);

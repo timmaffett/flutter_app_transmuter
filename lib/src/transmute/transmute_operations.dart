@@ -92,11 +92,11 @@ class TransmuteOperationRunner {
   }
 
   static List<TransmuteOperation> loadAndMergeOperations() {
-    // 1. Load defaults
+    // Load defaults
     final defaults = parseOperationsYaml(defaultTransmuteOperationsYaml);
     print('Loaded ${defaults.length} default transmute operations'.limeGreen);
 
-    // 2. Load user overrides if file exists
+    // Load user overrides if file exists
     final userFile = File(Constants.transmuteOperationsFile);
     if (!userFile.existsSync()) {
       if (FlutterAppTransmuter.verboseDebug > 0) {
@@ -109,7 +109,7 @@ class TransmuteOperationRunner {
     final userYaml = userFile.readAsStringSync();
     final userOps = parseOperationsYaml(userYaml);
 
-    // 3. Merge
+    // Merge
     return mergeOperations(defaults, userOps);
   }
 
