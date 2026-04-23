@@ -250,6 +250,7 @@ class BrandFileOperations {
           } else {
             final bLetter = brandIsNewer ? 'B'.brightGreen.bold : 'B';
             final pLetter = projectIsNewer ? 'P'.brightGreen.bold : 'P';
+            // No outer color on this prompt: its ANSI reset would terminate the bLetter/pLetter coloring.
             stdout.write('  ($bLetter) use brand file -> project, ($pLetter) use project file -> brand, or (N) skip (default N): ');
             response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
           }
