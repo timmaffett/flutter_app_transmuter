@@ -207,15 +207,25 @@ class BrandFileOperations {
         print('  DIFFERENT: ${mapping.source} != $projectPath'.brightRed);
         different++;
 
-        // Check modification times to warn if brand file is newer
         final brandModified = File(brandPath).lastModifiedSync();
         final projectModified = File(projectPath).lastModifiedSync();
         final brandIsNewer = brandModified.isAfter(projectModified);
+        final projectIsNewer = projectModified.isAfter(brandModified);
 
-        if (brandIsNewer) {
-          print('  WARNING: Brand file is NEWER than project file'.brightYellow);
-          print('    brand:   ${brandModified.toLocal()}'.brightYellow);
-          print('    project: ${projectModified.toLocal()}'.brightYellow);
+        // File-ages block: always shown on DIFFERENT, newer file highlighted in bright green.
+        if (!brandIsNewer && !projectIsNewer) {
+          print('  file ages: ${brandModified.toLocal()} (same age)');
+        } else {
+          print('  file ages:');
+          final brandLine = '    brand:   ${brandModified.toLocal()}';
+          final projectLine = '    project: ${projectModified.toLocal()}';
+          if (brandIsNewer) {
+            print('$brandLine   (newer)'.brightGreen);
+            print(projectLine.gray);
+          } else {
+            print(brandLine.gray);
+            print('$projectLine   (newer)'.brightGreen);
+          }
         }
 
         if (autoConfirm) {
@@ -223,62 +233,37 @@ class BrandFileOperations {
           print('  UPDATED: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
           updated++;
         } else {
-          if (brandIsNewer) {
-            String response;
-            if (FlutterAppTransmuter.autoBrandFile) {
-              response = 'b';
-              print('  Auto-answering B (--brandfile)'.brightYellow);
-            } else if (FlutterAppTransmuter.autoProjectFile) {
-              response = 'p';
-              print('  Auto-answering P (--projectfile)'.brightYellow);
-            } else if (FlutterAppTransmuter.autoSkip) {
-              response = 'n';
-              print('  Auto-skipping (--skip)'.brightYellow);
-            } else if (FlutterAppTransmuter.fatalPrompts) {
-              print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
-              response = 'n';
-              exit(1);
-            } else {
-              stdout.write('  (B) use brand file -> project, (P) use project file -> brand, or (N) skip (default N): '.brightYellow);
-              response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-            }
-            if (response == 'b') {
-              FileUtils.copyFile(brandPath, projectPath);
-              print('  UPDATED PROJECT: $brandPath -> ${projectPath.brightGreen}'.brightGreen);
-              updated++;
-            } else if (response == 'p') {
-              FileUtils.copyFile(projectPath, brandPath);
-              print('  UPDATED BRAND: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
-              updated++;
-            } else {
-              print('  SKIPPED'.brightYellow);
-              skipped++;
-            }
+          String response;
+          if (FlutterAppTransmuter.autoBrandFile) {
+            response = 'b';
+            print('  Auto-answering B (--brandfile)'.brightYellow);
+          } else if (FlutterAppTransmuter.autoProjectFile) {
+            response = 'p';
+            print('  Auto-answering P (--projectfile)'.brightYellow);
+          } else if (FlutterAppTransmuter.autoSkip) {
+            response = 'n';
+            print('  Auto-skipping (--skip)'.brightYellow);
+          } else if (FlutterAppTransmuter.fatalPrompts) {
+            print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+            response = 'n';
+            exit(1);
           } else {
-            bool doUpdate;
-            if (FlutterAppTransmuter.autoProjectFile) {
-              doUpdate = true;
-              print('  Auto-updating brand from project (--projectfile)'.brightYellow);
-            } else if (FlutterAppTransmuter.autoBrandFile || FlutterAppTransmuter.autoSkip) {
-              doUpdate = false;
-              print('  Auto-skipping (${FlutterAppTransmuter.autoBrandFile ? '--brandfile' : '--skip'})'.brightYellow);
-            } else if (FlutterAppTransmuter.fatalPrompts) {
-              print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
-              doUpdate = false;
-              exit(1);
-            } else {
-              stdout.write('  Update brand file ${mapping.source.brightCyan} from $projectPath? (y/N): '.brightYellow);
-              final response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-              doUpdate = response == 'y' || response == 'yes';
-            }
-            if (doUpdate) {
-              FileUtils.copyFile(projectPath, brandPath);
-              print('  UPDATED: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
-              updated++;
-            } else {
-              print('  SKIPPED'.brightYellow);
-              skipped++;
-            }
+            final bLetter = brandIsNewer ? 'B'.brightGreen.bold : 'B';
+            final pLetter = projectIsNewer ? 'P'.brightGreen.bold : 'P';
+            stdout.write('  ($bLetter) use brand file -> project, ($pLetter) use project file -> brand, or (N) skip (default N): ');
+            response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+          }
+          if (response == 'b') {
+            FileUtils.copyFile(brandPath, projectPath);
+            print('  UPDATED PROJECT: $brandPath -> ${projectPath.brightGreen}'.brightGreen);
+            updated++;
+          } else if (response == 'p') {
+            FileUtils.copyFile(projectPath, brandPath);
+            print('  UPDATED BRAND: $projectPath -> ${brandPath.brightGreen}'.brightGreen);
+            updated++;
+          } else {
+            print('  SKIPPED'.brightYellow);
+            skipped++;
           }
         }
       }
