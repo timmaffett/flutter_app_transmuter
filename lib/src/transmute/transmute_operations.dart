@@ -41,6 +41,7 @@ class TransmuteOperation {
   final String? regex;
   final bool multiline;
   final String? replacement;
+  final bool alwaysRun;
 
   TransmuteOperation({
     required this.id,
@@ -55,6 +56,7 @@ class TransmuteOperation {
     this.regex,
     this.multiline = false,
     this.replacement,
+    this.alwaysRun = false,
   });
 
   factory TransmuteOperation.fromYamlMap(YamlMap map) {
@@ -71,6 +73,7 @@ class TransmuteOperation {
       regex: map['regex'] as String?,
       multiline: (map['multiline'] as bool?) ?? false,
       replacement: map['replacement'] as String?,
+      alwaysRun: (map['always_run'] as bool?) ?? ((map['type'] as String?) == 'git_restore'),
     );
   }
 }
@@ -114,8 +117,23 @@ class TransmuteOperationRunner {
   }
 
   static void executeAll(List<TransmuteOperation> operations, Map<String, dynamic> transmuteData) {
+    // First pass: run all git restore operations before any other transforms.
     for (final op in operations) {
       if (op.disabled) continue;
+      if (op.type == 'git_restore' || op.alwaysRun) {
+        final color = _colorForPlatform(op.platform);
+        print(color('>> ${op.description} [${op.id}]'));
+        executeGitRestore(op);
+      }
+    }
+
+    // Second pass: run standard value-driven operations.
+    for (final op in operations) {
+      if (op.disabled) continue;
+
+      if (op.type == 'git_restore' || op.alwaysRun) {
+        continue;
+      }
 
       final value = resolveValue(op, transmuteData);
       if (value == null || value.isEmpty) {
@@ -143,6 +161,24 @@ class TransmuteOperationRunner {
           print('WARNING: Unknown operation type "${op.type}" for ${op.id}'.brightRed);
       }
     }
+  }
+
+  static void executeGitRestore(TransmuteOperation op) {
+    final filePath = op.file;
+    if (filePath == null) {
+      print('ERROR: git_restore operation ${op.id} has no file path'.brightRed);
+      return;
+    }
+    // Try `git restore` (git >= 2.23), fall back to `git checkout --`
+    var result = Process.runSync('git', ['restore', filePath]);
+    if (result.exitCode != 0) {
+      result = Process.runSync('git', ['checkout', '--', filePath]);
+    }
+    if (result.exitCode != 0) {
+      print('  ERROR: git restore failed for $filePath: ${result.stderr}'.brightRed);
+      return;
+    }
+    print('  Restored $filePath to git HEAD baseline'.limeGreen);
   }
 
   static void executeRegexReplace(TransmuteOperation op, String value) {
@@ -244,6 +280,14 @@ class TransmuteOperationRunner {
     for (final op in operations) {
       if (op.disabled) continue;
 
+      // git_restore: in dryrun/check mode just report what would happen
+      if (op.type == 'git_restore' || op.alwaysRun) {
+        final color = _colorForPlatform(op.platform);
+        print(color('  WOULD:    [${op.id}] ${op.description} (git restore ${op.file ?? ''})'));
+        skippedOps++;
+        continue;
+      }
+
       final value = resolveValue(op, transmuteData);
       if (value == null || value.isEmpty) {
         print('  SKIP:     [${op.id}] no value for json_key "${op.jsonKey}"'
@@ -314,6 +358,14 @@ class TransmuteOperationRunner {
 
     for (final op in operations) {
       if (op.disabled) continue;
+
+      // git_restore: in interactive check mode just report what would happen
+      if (op.type == 'git_restore' || op.alwaysRun) {
+        final color = _colorForPlatform(op.platform);
+        print(color('  WOULD:    [${op.id}] ${op.description} (git restore ${op.file ?? ''})'));
+        skippedOps++;
+        continue;
+      }
 
       final color = _colorForPlatform(op.platform);
       final value = resolveValue(op, transmuteData);

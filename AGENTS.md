@@ -189,6 +189,7 @@ Common files to swap whole: `config.dart`, `theme.dart`, `google-services.json`,
 |------|--------|
 | Regex must have a capture group | `group(1)` is used to extract the old value for logging. Without it, you get a `RangeError` |
 | Use `$value` in replacement | Substituted with the value from `transmute.json` at the key specified by `json_key` |
+| Use `git_restore` for deterministic baselines | Resets a file to git `HEAD` before other transforms; ideal for `ios/Runner/Info.plist` when switching brands |
 | Use marker comments | Anchor regexes with comments like `//BRANDNAME` so they don't accidentally match elsewhere |
 | `id` must be unique | Used for merge/override matching. Reusing a built-in `id` overrides that operation |
 | `disabled: true` removes an operation | Use this to turn off a built-in default you don't need |
@@ -203,6 +204,13 @@ Common files to swap whole: `config.dart`, `theme.dart`, `google-services.json`,
 | `regex_replace` | Match regex, replace with template. Good for single-value changes in a known location |
 | `extract_and_replace` | Extract current value via `group(1)`, then replace ALL occurrences of that value in the file. Good for values that appear many times (like bundle ID in pbxproj) |
 | `move_activity` | Special: moves `MainActivity.java`/`.kt` to the package directory matching `packageName` |
+| `git_restore` | Special: restores `file` to git `HEAD` baseline using `git restore` (fallback: `git checkout --`). Runs unconditionally and does not require `json_key` |
+
+Execution order for operations is two-pass:
+1. All `git_restore` operations run first
+2. All value-driven operations run next (`regex_replace`, `extract_and_replace`, `move_activity`)
+
+This guarantees deterministic starting state for files that many brands mutate over time.
 
 ## Post-Switch Pipeline
 
@@ -229,6 +237,7 @@ Step name prefixes: `ios_` = macOS only, `android_` = Windows/Linux only, `requi
 - **`--switch` is interactive by default** — it prompts when files differ. Use `--projectfile --transmutevalue` or `--yes` for non-interactive CI usage
 - **Operation `id` values are sacred** — the built-in IDs are part of the public API. Users override operations by matching `id`, so changing them in the source breaks user customizations
 - **The `files:` section uses basenames** — `lib/client/config.dart` means "find `config.dart` in the brand directory, copy to `lib/client/config.dart`"
+- **Do not rely on append order for `git_restore`** — user operations are appended during merge, but `git_restore` still executes first due to the dedicated pre-pass
 
 ## Example Project
 

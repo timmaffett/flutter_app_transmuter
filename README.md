@@ -184,6 +184,10 @@ dart run flutter_app_transmuter:main --transmute
 
 This is the main operation. It reads `transmute.json`, loads the operations from the built-in defaults (and merges any user `transmute_operations.yaml`), then executes each operation in order.
 
+Execution is two-pass:
+- Pass 1 runs all `git_restore` operations first (unconditionally)
+- Pass 2 runs all value-driven operations (`regex_replace`, `extract_and_replace`, `move_activity`)
+
 ```bash
 # Dry run to preview changes
 dart run flutter_app_transmuter:main --transmute --dryrun
@@ -476,21 +480,38 @@ Moves `MainActivity.java`/`.kt` to the correct package directory structure. This
   json_key: packageName
 ```
 
+#### `git_restore`
+
+Restores a file to the git `HEAD` baseline before other operations run. This operation is designed for deterministic transforms on files that are modified by many brands (for example, `ios/Runner/Info.plist`).
+
+`git_restore` runs unconditionally and does not require a `json_key` value.
+
+```yaml
+- id: restore_info_plist_baseline
+  description: "Restore Info.plist before transmute"
+  type: git_restore
+  platform: ios
+  file: "ios/Runner/Info.plist"
+```
+
+Under the hood, transmuter tries `git restore <file>` first, and falls back to `git checkout -- <file>` for older git versions.
+
 ### Operation Fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `id` | Yes | Unique identifier for merge/override matching |
 | `description` | Yes | Human-readable label printed during execution |
-| `type` | Yes | `regex_replace`, `extract_and_replace`, or `move_activity` |
+| `type` | Yes | `regex_replace`, `extract_and_replace`, `move_activity`, or `git_restore` |
 | `platform` | Yes | `android`, `ios`, or `both` (affects logging color) |
-| `file` | For regex/extract | Path to the file to modify (relative to project root) |
+| `file` | For regex/extract/git_restore | Path to the file to modify (relative to project root) |
 | `optional` | No | If `true`, skip silently when file doesn't exist (default: `false`) |
-| `json_key` | Yes | The `transmute.json` key that provides the replacement value |
+| `json_key` | No for `git_restore`, Yes otherwise | The `transmute.json` key that provides the replacement value |
 | `fallback_key` | No | Fallback `transmute.json` key if `json_key` is missing |
 | `regex` | For regex/extract | Regular expression pattern (use single quotes in YAML) |
 | `multiline` | No | Enable multiline regex matching (default: `false`) |
 | `replacement` | For regex/extract | Template string — `$value` is replaced with the JSON value |
+| `always_run` | No | If `true`, runs without requiring `json_key` (implicitly true for `git_restore`) |
 
 ### Customizing with `transmute_operations.yaml`
 
@@ -505,6 +526,8 @@ Then edit the file. The merge rules are:
 - **Override** — A user operation with the same `id` as a default replaces it in-place
 - **Disable** — Set `disabled: true` on an operation `id` to remove it
 - **Extend** — Operations with new `id` values are appended at the end
+
+Note on ordering: all `git_restore` operations execute in a dedicated first pass before any other operation types, regardless of where they appear in the merged list.
 
 #### Example: Custom `transmute_operations.yaml`
 
