@@ -1,13 +1,17 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.3
+
+* Improve README.md
+* Add `git_restore` transmute operation type to restore files to git `HEAD` baseline.
+* Execute `git_restore` operations in a dedicated first pass before all value-driven operations.
+* Document `git_restore`, `always_run`, and operation execution order in README and AGENTS docs.
+
 ## 2.1.2
 
 * Add example app with 3 brands and documentation.
 * Add AGENTS.md file
 * Improve README.md
-* Add `git_restore` transmute operation type to restore files to git `HEAD` baseline.
-* Execute `git_restore` operations in a dedicated first pass before all value-driven operations.
-* Document `git_restore`, `always_run`, and operation execution order in README and AGENTS docs.
 
 ## 2.1.1
 
