@@ -12,6 +12,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
+import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 import 'default_tag_release.dart';
 
@@ -132,5 +133,43 @@ class TagReleaseConfig {
       return node.map(_toPlain).toList();
     }
     return node;
+  }
+}
+
+class TagReleaseRunner {
+  /// Derive the slug from a brand directory: take the basename, then
+  /// repeatedly strip a trailing match of [stripPattern] until none remains.
+  static String deriveSlug(String brandDir, String stripPattern) {
+    var slug = path.basename(brandDir.endsWith('/') || brandDir.endsWith('\\')
+        ? brandDir.substring(0, brandDir.length - 1)
+        : brandDir);
+    final re = RegExp(stripPattern);
+    while (re.hasMatch(slug)) {
+      final next = slug.replaceFirst(re, '');
+      if (next == slug) break; // guard against zero-width match loops
+      slug = next;
+    }
+    return slug;
+  }
+
+  /// Replace `{token}` occurrences using [tokens]; unknown tokens become
+  /// the literal string `unknown` (mirrors the shell script's `:-unknown`).
+  static String renderTemplate(String template, Map<String, String> tokens) {
+    return template.replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) {
+      final key = m.group(1)!;
+      final v = tokens[key];
+      return (v == null || v.isEmpty) ? 'unknown' : v;
+    });
+  }
+
+  /// ISO-8601 local timestamp with a numeric timezone offset, e.g.
+  /// `2026-06-05T14:30:00-0700` (replaces the shell `date +%Y-%m-%dT%H:%M:%S%z`).
+  static String formatTagDate(DateTime now) {
+    final off = now.timeZoneOffset;
+    final sign = off.isNegative ? '-' : '+';
+    final hh = off.inHours.abs().toString().padLeft(2, '0');
+    final mm = (off.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    final base = now.toIso8601String().split('.').first; // drop milliseconds
+    return '$base$sign$hh$mm';
   }
 }

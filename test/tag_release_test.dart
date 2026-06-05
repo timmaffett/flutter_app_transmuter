@@ -64,4 +64,31 @@ tag_release:
       expect(cfg.metadata[3].firstLine, isTrue);
     });
   });
+
+  group('TagReleaseRunner pure helpers', () {
+    test('deriveSlug strips trailing _<digits> groups repeatedly', () {
+      expect(TagReleaseRunner.deriveSlug('fine_335_1535_2185_2190', r'_[0-9]+$'), 'fine');
+      expect(TagReleaseRunner.deriveSlug('mke_smartpark_1495', r'_[0-9]+$'), 'mke_smartpark');
+      expect(TagReleaseRunner.deriveSlug('netpark_demo_Loyalty', r'_[0-9]+$'), 'netpark_demo_Loyalty');
+    });
+
+    test('deriveSlug uses basename of a path', () {
+      expect(TagReleaseRunner.deriveSlug('branded/fine_335', r'_[0-9]+$'), 'fine');
+    });
+
+    test('renderTemplate substitutes tokens, unknown -> unknown', () {
+      final tokens = {'slug': 'fine', 'platform': 'ios', 'version': '2.0.6+22'};
+      expect(
+        TagReleaseRunner.renderTemplate('release/{slug}/{platform}/{version}', tokens),
+        'release/fine/ios/2.0.6+22',
+      );
+      expect(TagReleaseRunner.renderTemplate('x={missing}', tokens), 'x=unknown');
+    });
+
+    test('formatTagDate produces ISO-8601 with numeric offset', () {
+      final dt = DateTime(2026, 6, 5, 14, 30, 0);
+      final out = TagReleaseRunner.formatTagDate(dt);
+      expect(out, matches(r'^2026-06-05T14:30:00[+-]\d{4}$'));
+    });
+  });
 }
