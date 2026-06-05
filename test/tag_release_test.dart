@@ -91,4 +91,57 @@ tag_release:
       expect(out, matches(r'^2026-06-05T14:30:00[+-]\d{4}$'));
     });
   });
+
+  group('platform resolution', () {
+    test('letter maps to canonical platform', () {
+      expect(TagReleaseRunner.platformForLetter('I'), 'ios');
+      expect(TagReleaseRunner.platformForLetter('a'), 'android');
+      expect(TagReleaseRunner.platformForLetter('W'), 'windows');
+      expect(TagReleaseRunner.platformForLetter('m'), 'macosx');
+      expect(TagReleaseRunner.platformForLetter('L'), 'linux');
+      expect(TagReleaseRunner.platformForLetter('z'), isNull);
+    });
+
+    test('precedence: cmdline > by_os > default', () {
+      final cfg = TagReleaseConfig.fromYamlString('''
+tag_release:
+  default_platform: ios
+  default_platform_by_os: "windows=android, macosx=android"
+''');
+      // cmdline wins
+      expect(
+        TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: 'linux', hostOs: 'windows'),
+        'linux',
+      );
+      // by_os matches host
+      expect(
+        TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: null, hostOs: 'windows'),
+        'android',
+      );
+      // host not in by_os -> default_platform
+      expect(
+        TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: null, hostOs: 'linux'),
+        'ios',
+      );
+    });
+
+    test('returns null when nothing resolves (caller must prompt)', () {
+      final cfg = TagReleaseConfig.fromDefaults();
+      expect(
+        TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: null, hostOs: 'linux'),
+        isNull,
+      );
+    });
+
+    test('macos host maps to macosx by_os key', () {
+      final cfg = TagReleaseConfig.fromYamlString('''
+tag_release:
+  default_platform_by_os: "macosx=ios"
+''');
+      expect(
+        TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: null, hostOs: 'macos'),
+        'ios',
+      );
+    });
+  });
 }

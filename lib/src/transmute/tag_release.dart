@@ -172,4 +172,37 @@ class TagReleaseRunner {
     final base = now.toIso8601String().split('.').first; // drop milliseconds
     return '$base$sign$hh$mm';
   }
+
+  /// Canonical platform values, keyed by their prompt letter.
+  static const Map<String, String> platformLetters = {
+    'i': 'ios',
+    'a': 'android',
+    'w': 'windows',
+    'm': 'macosx',
+    'l': 'linux',
+  };
+
+  static String? platformForLetter(String letter) => platformLetters[letter.trim().toLowerCase()];
+
+  /// Map Dart's `Platform.operatingSystem` value to a `default_platform_by_os`
+  /// key (`macos` -> `macosx`; others pass through).
+  static String hostOsKey(String dartOs) => dartOs == 'macos' ? 'macosx' : dartOs;
+
+  /// Resolve platform without prompting. Returns null if unresolved (the
+  /// caller then prompts, or errors under --fatal-prompts).
+  /// Order: cliPlatform > default_platform_by_os[hostOs] > default_platform.
+  static String? resolvePlatformNonInteractive(
+    TagReleaseConfig cfg, {
+    required String? cliPlatform,
+    required String hostOs,
+  }) {
+    if (cliPlatform != null && cliPlatform.isNotEmpty) {
+      return cliPlatform.toLowerCase();
+    }
+    final byOs = cfg.defaultPlatformByOs[hostOsKey(hostOs)];
+    if (byOs != null && byOs.isNotEmpty) return byOs;
+    final def = cfg.defaultPlatform;
+    if (def != null && def.isNotEmpty) return def.toLowerCase();
+    return null;
+  }
 }
