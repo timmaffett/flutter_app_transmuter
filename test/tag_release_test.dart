@@ -218,4 +218,161 @@ tag_release:
       expect(out, 'unknown');
     });
   });
+
+  group('TagReleaseRunner.run (temp git repo)', () {
+    late Directory repo;
+    late String brandDir;
+
+    String git(List<String> args) {
+      final r = Process.runSync('git', args, workingDirectory: repo.path);
+      if (r.exitCode != 0) {
+        throw StateError('git ${args.join(' ')} failed: ${r.stderr}');
+      }
+      return (r.stdout as String).trim();
+    }
+
+    setUp(() {
+      repo = Directory.systemTemp.createTempSync('tagrel_repo_');
+      git(['init', '-q']);
+      git(['config', 'user.name', 'Test User']);
+      git(['config', 'user.email', 'test@example.com']);
+      brandDir = path.join('branded', 'fine_335_1535');
+      Directory(path.join(repo.path, brandDir)).createSync(recursive: true);
+      File(path.join(repo.path, brandDir, 'transmute.json')).writeAsStringSync(
+          '{"appName":"Fine App","iosBundleIdentifier":"com.fine.app","pubspec_version":"2.0.6+22"}');
+      File(path.join(repo.path, 'README.md')).writeAsStringSync('hi\n');
+      git(['add', '.']);
+      git(['commit', '-q', '-m', 'initial']);
+    });
+    tearDown(() => repo.deleteSync(recursive: true));
+
+    TagReleaseRunner runner() => TagReleaseRunner(
+          TagReleaseConfig.fromDefaults(),
+          workingDir: repo.path,
+        );
+
+    test('creates an annotated tag with the templated name', () {
+      final result = runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const [],
+        push: false,
+        force: false,
+        dryRun: false,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      expect(result.success, isTrue);
+      expect(result.tag, 'release/fine/ios/2.0.6+22');
+      final shown = git(['tag', '-n99', '-l', 'release/fine/ios/2.0.6+22']);
+      expect(shown, contains('Release: Fine App'));
+      expect(shown, contains('Bundle ID'));
+      expect(shown, contains('com.fine.app'));
+    });
+
+    test('notes appear in annotation', () {
+      runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const ['Hotfix for crash'],
+        push: false,
+        force: false,
+        dryRun: false,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      final shown = git(['tag', '-n99', '-l', 'release/fine/ios/2.0.6+22']);
+      expect(shown, contains('Hotfix for crash'));
+    });
+
+    test('refuses when working tree is dirty', () {
+      File(path.join(repo.path, 'README.md')).writeAsStringSync('changed\n');
+      final result = runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const [],
+        push: false,
+        force: false,
+        dryRun: false,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      expect(result.success, isFalse);
+      expect(result.message, contains('working tree'));
+    });
+
+    test('refuses existing tag without force, succeeds with force', () {
+      RunResult once() => runner().run(
+            brandDir: brandDir,
+            cliPlatform: 'ios',
+            notes: const [],
+            push: false,
+            force: false,
+            dryRun: false,
+            fatalPrompts: false,
+            hostOs: 'linux',
+            now: DateTime(2026, 6, 5, 12, 0, 0),
+            promptPlatform: () => 'ios',
+          );
+      expect(once().success, isTrue);
+      final second = once();
+      expect(second.success, isFalse);
+      expect(second.message, contains('already exists'));
+
+      final forced = runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const [],
+        push: false,
+        force: true,
+        dryRun: false,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      expect(forced.success, isTrue);
+    });
+
+    test('dry run creates no tag', () {
+      final result = runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const [],
+        push: false,
+        force: false,
+        dryRun: true,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      expect(result.success, isTrue);
+      final tags = Process.runSync('git', ['tag', '-l'], workingDirectory: repo.path).stdout as String;
+      expect(tags.trim(), isEmpty);
+    });
+
+    test('unresolved platform under fatalPrompts fails', () {
+      final result = runner().run(
+        brandDir: brandDir,
+        cliPlatform: null,
+        notes: const [],
+        push: false,
+        force: false,
+        dryRun: false,
+        fatalPrompts: true,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => throw StateError('should not prompt'),
+      );
+      expect(result.success, isFalse);
+      expect(result.message, contains('platform'));
+    });
+  });
 }

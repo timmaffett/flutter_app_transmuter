@@ -14,6 +14,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:chalkdart/chalkstrings.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 import 'default_tag_release.dart';
@@ -138,7 +139,19 @@ class TagReleaseConfig {
   }
 }
 
+class RunResult {
+  final String tag;
+  final bool success;
+  final String message;
+  RunResult({required this.tag, required this.success, required this.message});
+}
+
 class TagReleaseRunner {
+  final TagReleaseConfig config;
+  final String workingDir;
+
+  TagReleaseRunner(this.config, {this.workingDir = '.'});
+
   /// Derive the slug from a brand directory: take the basename, then
   /// repeatedly strip a trailing match of [stripPattern] until none remains.
   static String deriveSlug(String brandDir, String stripPattern) {
@@ -267,5 +280,159 @@ class TagReleaseRunner {
     } catch (_) {
       return {};
     }
+  }
+
+  ProcessResult _git(List<String> args) =>
+      Process.runSync('git', args, workingDirectory: workingDir);
+
+  bool _isGitRepo() => _git(['rev-parse', '--git-dir']).exitCode == 0;
+
+  bool _isClean() {
+    final r = _git(['status', '--porcelain']);
+    return r.exitCode == 0 && (r.stdout as String).trim().isEmpty;
+  }
+
+  bool _tagExists(String tag) =>
+      _git(['rev-parse', '-q', '--verify', 'refs/tags/$tag']).exitCode == 0;
+
+  String _gitUser() {
+    final name = (_git(['config', 'user.name']).stdout as String).trim();
+    final email = (_git(['config', 'user.email']).stdout as String).trim();
+    if (name.isEmpty && email.isEmpty) return 'unknown';
+    return '$name <$email>';
+  }
+
+  /// Orchestrate the whole tag-release flow. Pure-ish: side effects are git
+  /// calls + (optionally) a stdout prompt provided by [promptPlatform].
+  RunResult run({
+    required String brandDir,
+    required String? cliPlatform,
+    required List<String> notes,
+    required bool push,
+    required bool force,
+    required bool dryRun,
+    required bool fatalPrompts,
+    required String hostOs,
+    required DateTime now,
+    required String Function() promptPlatform,
+  }) {
+    if (!_isGitRepo()) {
+      return RunResult(tag: '', success: false, message: 'not inside a git repository');
+    }
+    final brandPath = Directory(path.join(workingDir, brandDir));
+    if (!brandPath.existsSync()) {
+      return RunResult(tag: '', success: false, message: 'brand dir not found: $brandDir');
+    }
+    for (final required in config.requiredFiles) {
+      if (!File(path.join(brandPath.path, required)).existsSync()) {
+        return RunResult(tag: '', success: false, message: 'missing $brandDir/$required');
+      }
+    }
+
+    final jsonData = readTransmuteJson(brandPath.path);
+    final version = jsonData[config.versionField]?.toString() ?? '';
+    if (version.isEmpty) {
+      return RunResult(
+          tag: '', success: false, message: 'no ${config.versionField} in $brandDir/transmute.json');
+    }
+
+    // Resolve platform.
+    var platform = resolvePlatformNonInteractive(config, cliPlatform: cliPlatform, hostOs: hostOs);
+    if (platform == null) {
+      if (fatalPrompts) {
+        return RunResult(tag: '', success: false, message: 'platform unresolved (--fatal-prompts)');
+      }
+      platform = promptPlatform();
+    }
+
+    final slug = deriveSlug(brandDir, config.slugStripPattern);
+
+    // Build the base token map: all transmute.json string values + built-ins.
+    final tokens = <String, String>{};
+    jsonData.forEach((k, v) {
+      if (v != null) tokens[k] = v.toString();
+    });
+    tokens['slug'] = slug;
+    tokens['platform'] = platform;
+    tokens['version'] = version;
+    tokens['brand_dir'] = brandDir;
+    tokens['commit'] = (_git(['rev-parse', 'HEAD']).stdout as String).trim();
+    tokens['git_user'] = _gitUser();
+    tokens['date'] = formatTagDate(now);
+    if ((tokens['appName'] ?? '').isEmpty) tokens['appName'] = slug; // title fallback (matches script)
+
+    final tag = renderTemplate(config.tagTemplate, tokens);
+
+    // Safety checks.
+    if (!_isClean()) {
+      return RunResult(
+          tag: tag,
+          success: false,
+          message: 'working tree is not clean. Switch back to your canonical brand and commit first.');
+    }
+    if (_tagExists(tag) && !force) {
+      return RunResult(
+          tag: tag, success: false, message: 'tag already exists: $tag (use --force to overwrite)');
+    }
+
+    // Build annotation message.
+    final buf = StringBuffer();
+    buf.writeln(renderTemplate(config.title, tokens));
+    for (final n in notes) {
+      if (n.trim().isNotEmpty) {
+        buf.writeln();
+        buf.writeln('Note: $n');
+      }
+    }
+    buf.writeln();
+    for (final entry in config.metadata) {
+      final value = resolveMetadataEntry(
+        entry,
+        jsonData: jsonData,
+        brandDir: brandPath.path,
+        workingDir: workingDir,
+        tokens: tokens,
+      );
+      buf.writeln('${entry.label.padRight(15)} $value');
+    }
+    final message = buf.toString();
+
+    if (dryRun) {
+      print('[dry run] Would create tag: $tag'.brightCyan);
+      print(message);
+      return RunResult(tag: tag, success: true, message: 'dry run');
+    }
+
+    // Create the tag via a temp message file (cross-platform; avoids stdin pipe).
+    final tmpFile = File(
+        path.join(Directory.systemTemp.path, 'tagrelease_msg_${tag.replaceAll('/', '_')}.txt'));
+    tmpFile.writeAsStringSync(message);
+    try {
+      final args = force
+          ? ['tag', '-a', '-f', tag, '-F', tmpFile.path]
+          : ['tag', '-a', tag, '-F', tmpFile.path];
+      final r = _git(args);
+      if (r.exitCode != 0) {
+        return RunResult(tag: tag, success: false, message: 'git tag failed: ${r.stderr}');
+      }
+    } finally {
+      if (tmpFile.existsSync()) tmpFile.deleteSync();
+    }
+
+    print('Created annotated tag: $tag'.brightGreen);
+    final shown = _git(['tag', '-n99', '-l', tag]).stdout as String;
+    print(shown);
+
+    if (push) {
+      print('Pushing tag to origin...'.brightGreen);
+      final pr = _git(['push', 'origin', tag]);
+      if (pr.exitCode != 0) {
+        return RunResult(tag: tag, success: false, message: 'git push failed: ${pr.stderr}');
+      }
+    } else {
+      print('To publish this tag, run:\n    git push origin $tag'.brightYellow);
+    }
+
+    return RunResult(tag: tag, success: true, message: 'created');
   }
 }
