@@ -46,6 +46,11 @@ enum Options {
   fileValue('filevalue'),
   fatalPrompts('fatal-prompts'),
   executePostProcess('executepostprocess'),
+  tagRelease('tagrelease'),
+  platform('platform'),
+  note('note'),
+  push('push'),
+  force('force'),
   showDefaultYaml('showdefaultyaml'),
   writeDefaultYaml('writedefaultyaml');
 
@@ -123,6 +128,33 @@ void main(List<String> args) async {
       help: 'Write default transmute operations YAML to file (default: ${Constants.transmuteOperationsFile})',
       valueHelp: 'filename',
       defaultsTo: '',
+    )
+    ..addOption(
+      Options.tagRelease.name,
+      help: 'Create an annotated git release tag for <brand_dir> (see tag_release config)',
+      valueHelp: 'brand_dir',
+    )
+    ..addOption(
+      Options.platform.name,
+      help: 'Release platform for --tagrelease (ios, android, windows, macosx, linux)',
+      valueHelp: 'platform',
+    )
+    ..addMultiOption(
+      Options.note.name,
+      help: 'Note paragraph added to the release tag annotation (repeatable)',
+      valueHelp: 'text',
+    )
+    ..addFlag(
+      Options.push.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Push the release tag to origin after creating it (--tagrelease)',
+    )
+    ..addFlag(
+      Options.force.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Overwrite an existing release tag (--tagrelease)',
     )
     ..addFlag(
       Options.yes.name,
@@ -331,10 +363,11 @@ void main(List<String> args) async {
   final String? switchDir = parsedArgs[Options.switchBrand.name];
   final bool doExecutePostProcess = parsedArgs.wasParsed(Options.executePostProcess.name);
   final String executePostProcessDirArg = parsedArgs[Options.executePostProcess.name] as String;
+  final String? tagReleaseDir = parsedArgs[Options.tagRelease.name];
 
-  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0) + (switchDir != null ? 1 : 0) + (doExecutePostProcess ? 1 : 0);
+  final int opCount = (doTransmute ? 1 : 0) + (doStatus ? 1 : 0) + (doCheck ? 1 : 0) + (doVerify ? 1 : 0) + (copyDir != null ? 1 : 0) + (doDiff ? 1 : 0) + (doUpdate ? 1 : 0) + (switchDir != null ? 1 : 0) + (doExecutePostProcess ? 1 : 0) + (tagReleaseDir != null ? 1 : 0);
   if (opCount > 1) {
-    print('Error: --status, --check, --verify, --transmute, --copy, --diff, --update, --switch, and --executepostprocess are mutually exclusive.'.brightRed);
+    print('Error: --status, --check, --verify, --transmute, --copy, --diff, --update, --switch, --executepostprocess, and --tagrelease are mutually exclusive.'.brightRed);
     print(parser.usage);
     return;
   }
@@ -432,6 +465,22 @@ void main(List<String> args) async {
     }
 
     FlutterAppTransmuter.executePostProcess(executeDryRun: executeDryRun, verboseDebugLevel: verboseDebugLevel, enabledFlags: enabledFlags, excludedSteps: excludedSteps, postSwitchOperations: postOps, brandDir: brandDir);
+  } else if (tagReleaseDir != null) {
+    if (!Directory(tagReleaseDir).existsSync()) {
+      print('Error: Brand directory "$tagReleaseDir" does not exist.'.brightRed);
+      return;
+    }
+    final notes = parsedArgs[Options.note.name] as List<String>;
+    final cliPlatform = parsedArgs[Options.platform.name] as String?;
+    FlutterAppTransmuter.tagRelease(
+      executeDryRun: executeDryRun,
+      verboseDebugLevel: verboseDebugLevel,
+      brandDir: tagReleaseDir,
+      cliPlatform: cliPlatform,
+      notes: notes,
+      push: parsedArgs[Options.push.name] == true,
+      force: parsedArgs[Options.force.name] == true,
+    );
   }
 }
 

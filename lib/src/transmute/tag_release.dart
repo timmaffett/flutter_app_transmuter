@@ -85,6 +85,20 @@ class TagReleaseConfig {
     return fromMergedMap(_defaultMap(), _toPlain(user) as Map?);
   }
 
+  /// Build from `master_transmute.yaml` in the current directory, merged over
+  /// the shipped defaults. Missing file or missing `tag_release:` -> defaults.
+  factory TagReleaseConfig.fromMasterTransmute() {
+    final f = File('master_transmute.yaml');
+    if (!f.existsSync()) return TagReleaseConfig.fromDefaults();
+    try {
+      final doc = loadYaml(f.readAsStringSync());
+      final user = (doc is YamlMap) ? doc['tag_release'] : null;
+      return fromMergedMap(_defaultMap(), _toPlain(user) as Map?);
+    } catch (_) {
+      return TagReleaseConfig.fromDefaults();
+    }
+  }
+
   static Map<String, dynamic> _defaultMap() {
     final doc = loadYaml(defaultTagReleaseYaml) as YamlMap;
     return _toPlain(doc['tag_release']) as Map<String, dynamic>;
@@ -363,16 +377,22 @@ class TagReleaseRunner {
 
     final tag = renderTemplate(config.tagTemplate, tokens);
 
-    // Safety checks.
+    // Safety checks. In a real run these are hard refusals; in a dry run they
+    // are warnings so the preview (tag name + annotation) is still shown.
     if (!_isClean()) {
-      return RunResult(
-          tag: tag,
-          success: false,
-          message: 'working tree is not clean. Switch back to your canonical brand and commit first.');
+      const msg =
+          'working tree is not clean. Switch back to your canonical brand and commit first.';
+      if (!dryRun) {
+        return RunResult(tag: tag, success: false, message: msg);
+      }
+      print('[dry run] Warning: $msg'.brightYellow);
     }
     if (_tagExists(tag) && !force) {
-      return RunResult(
-          tag: tag, success: false, message: 'tag already exists: $tag (use --force to overwrite)');
+      final msg = 'tag already exists: $tag (use --force to overwrite)';
+      if (!dryRun) {
+        return RunResult(tag: tag, success: false, message: msg);
+      }
+      print('[dry run] Warning: $msg'.brightYellow);
     }
 
     // Build annotation message.

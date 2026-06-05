@@ -358,6 +358,26 @@ tag_release:
       expect(tags.trim(), isEmpty);
     });
 
+    test('dry run on a dirty tree still previews (no refusal, no tag)', () {
+      File(path.join(repo.path, 'README.md')).writeAsStringSync('changed\n');
+      final result = runner().run(
+        brandDir: brandDir,
+        cliPlatform: 'ios',
+        notes: const [],
+        push: false,
+        force: false,
+        dryRun: true,
+        fatalPrompts: false,
+        hostOs: 'linux',
+        now: DateTime(2026, 6, 5, 12, 0, 0),
+        promptPlatform: () => 'ios',
+      );
+      expect(result.success, isTrue);
+      expect(result.tag, 'release/fine/ios/2.0.6+22');
+      final tags = Process.runSync('git', ['tag', '-l'], workingDirectory: repo.path).stdout as String;
+      expect(tags.trim(), isEmpty);
+    });
+
     test('unresolved platform under fatalPrompts fails', () {
       final result = runner().run(
         brandDir: brandDir,

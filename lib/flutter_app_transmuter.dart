@@ -7,6 +7,7 @@ import '/src/transmute/constants.dart';
 import '/src/transmute/file_utils.dart';
 import '/src/transmute/brand_file_operations.dart';
 import '/src/transmute/transmute_operations.dart';
+import '/src/transmute/tag_release.dart';
 
 /// [FlutterAppTransmuter]
 class FlutterAppTransmuter {
@@ -146,6 +147,47 @@ class FlutterAppTransmuter {
     executingDryRun = executeDryRun;
     verboseDebug = verboseDebugLevel;
     TransmuteOperationRunner.executePostSwitchOperations(postSwitchOperations, enabledFlags, excludedSteps: excludedSteps, brandDir: brandDir);
+  }
+
+  static void tagRelease({
+    required bool executeDryRun,
+    required int verboseDebugLevel,
+    required String brandDir,
+    String? cliPlatform,
+    List<String> notes = const [],
+    bool push = false,
+    bool force = false,
+  }) {
+    executingDryRun = executeDryRun;
+    verboseDebug = verboseDebugLevel;
+
+    final runner = TagReleaseRunner(TagReleaseConfig.fromMasterTransmute());
+    final result = runner.run(
+      brandDir: brandDir,
+      cliPlatform: cliPlatform,
+      notes: notes,
+      push: push,
+      force: force,
+      dryRun: executeDryRun,
+      fatalPrompts: fatalPrompts,
+      hostOs: Platform.operatingSystem,
+      now: DateTime.now(),
+      promptPlatform: _promptForPlatform,
+    );
+    if (!result.success) {
+      print('tag-release: ${result.message}'.brightRed);
+    }
+  }
+
+  static String _promptForPlatform() {
+    while (true) {
+      stdout.write(
+          'Select release platform (IOS, Android, Windows, MacOSX, Linux) (I/A/W/M/L): '.brightYellow);
+      final line = stdin.readLineSync()?.trim() ?? '';
+      final p = TagReleaseRunner.platformForLetter(line);
+      if (p != null) return p;
+      print('Please enter one of I, A, W, M, L.'.brightRed);
+    }
   }
 
   static void statusBrand({required bool executeDryRun, required int verboseDebugLevel}) {
