@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as path;
 import 'package:flutter_app_transmuter/src/transmute/default_tag_release.dart';
 import 'package:flutter_app_transmuter/src/transmute/tag_release.dart';
 
@@ -142,6 +144,78 @@ tag_release:
         TagReleaseRunner.resolvePlatformNonInteractive(cfg, cliPlatform: null, hostOs: 'macos'),
         'ios',
       );
+    });
+  });
+
+  group('metadata resolution', () {
+    late Directory tmp;
+    setUp(() {
+      tmp = Directory.systemTemp.createTempSync('tagrel_meta_');
+      File(path.join(tmp.path, 'transmute.json')).writeAsStringSync(
+          '{"iosBundleIdentifier":"com.x.y","pubspec_version":"1.2.3+4"}');
+      File(path.join(tmp.path, 'shorebird.yaml')).writeAsStringSync('app_id: abc-123\n');
+    });
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    test('value source renders tokens', () {
+      final e = TagReleaseMetadataEntry(label: 'V', value: '{version}');
+      final out = TagReleaseRunner.resolveMetadataEntry(
+        e,
+        jsonData: const {},
+        brandDir: tmp.path,
+        workingDir: tmp.path,
+        tokens: const {'version': '1.2.3+4'},
+      );
+      expect(out, '1.2.3+4');
+    });
+
+    test('json_key source reads transmute.json value', () {
+      final e = TagReleaseMetadataEntry(label: 'B', jsonKey: 'iosBundleIdentifier');
+      final out = TagReleaseRunner.resolveMetadataEntry(
+        e,
+        jsonData: const {'iosBundleIdentifier': 'com.x.y'},
+        brandDir: tmp.path,
+        workingDir: tmp.path,
+        tokens: const {},
+      );
+      expect(out, 'com.x.y');
+    });
+
+    test('json_key missing -> unknown', () {
+      final e = TagReleaseMetadataEntry(label: 'D', jsonKey: 'DEVELOPMENT_TEAM');
+      final out = TagReleaseRunner.resolveMetadataEntry(
+        e,
+        jsonData: const {},
+        brandDir: tmp.path,
+        workingDir: tmp.path,
+        tokens: const {},
+      );
+      expect(out, 'unknown');
+    });
+
+    test('file + yaml_key reads a key from a brand YAML file', () {
+      final e = TagReleaseMetadataEntry(label: 'S', file: 'shorebird.yaml', yamlKey: 'app_id');
+      final out = TagReleaseRunner.resolveMetadataEntry(
+        e,
+        jsonData: const {},
+        brandDir: tmp.path,
+        workingDir: tmp.path,
+        tokens: const {},
+      );
+      expect(out, 'abc-123');
+    });
+
+    test('command with missing executable -> unknown', () {
+      final e = TagReleaseMetadataEntry(
+          label: 'X', command: ['definitely_not_a_real_binary_xyz', '--version'], firstLine: true);
+      final out = TagReleaseRunner.resolveMetadataEntry(
+        e,
+        jsonData: const {},
+        brandDir: tmp.path,
+        workingDir: tmp.path,
+        tokens: const {},
+      );
+      expect(out, 'unknown');
     });
   });
 }

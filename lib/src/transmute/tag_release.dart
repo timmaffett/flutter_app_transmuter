@@ -12,6 +12,8 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 import 'default_tag_release.dart';
@@ -204,5 +206,66 @@ class TagReleaseRunner {
     final def = cfg.defaultPlatform;
     if (def != null && def.isNotEmpty) return def.toLowerCase();
     return null;
+  }
+
+  /// Resolve a single metadata entry to its string value.
+  /// - value:        render template against [tokens]
+  /// - json_key:     look up in [jsonData] (missing -> 'unknown')
+  /// - file+yaml_key: read key from a YAML file under [brandDir]
+  /// - command:      stdout of the command run in [workingDir] (failure -> 'unknown')
+  static String resolveMetadataEntry(
+    TagReleaseMetadataEntry e, {
+    required Map<String, dynamic> jsonData,
+    required String brandDir,
+    required String workingDir,
+    required Map<String, String> tokens,
+  }) {
+    if (e.value != null) {
+      return renderTemplate(e.value!, tokens);
+    }
+    if (e.jsonKey != null) {
+      final v = jsonData[e.jsonKey];
+      return (v == null || v.toString().isEmpty) ? 'unknown' : v.toString();
+    }
+    if (e.file != null && e.yamlKey != null) {
+      final f = File(path.join(brandDir, e.file!));
+      if (!f.existsSync()) return 'unknown';
+      try {
+        final doc = loadYaml(f.readAsStringSync());
+        final v = (doc is YamlMap) ? doc[e.yamlKey] : null;
+        return (v == null || v.toString().isEmpty) ? 'unknown' : v.toString();
+      } catch (_) {
+        return 'unknown';
+      }
+    }
+    if (e.command != null && e.command!.isNotEmpty) {
+      try {
+        final result = Process.runSync(
+          e.command!.first,
+          e.command!.skip(1).toList(),
+          runInShell: true,
+          workingDirectory: workingDir,
+        );
+        if (result.exitCode != 0) return 'unknown';
+        var out = (result.stdout as String).trim();
+        if (out.isEmpty) return 'unknown';
+        if (e.firstLine) out = out.split('\n').first.trim();
+        return out;
+      } catch (_) {
+        return 'unknown';
+      }
+    }
+    return 'unknown';
+  }
+
+  /// Parse a transmute.json file into a plain map of string-ish values.
+  static Map<String, dynamic> readTransmuteJson(String brandDir) {
+    final f = File(path.join(brandDir, 'transmute.json'));
+    if (!f.existsSync()) return {};
+    try {
+      return jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
   }
 }
