@@ -18,3 +18,21 @@ files:
   - transmute.json
   - flutter_launcher_icons.yaml
   - flutter_native_splash.yaml
+
+# Release tagging configuration for `--tagrelease`.
+# The shipped defaults already produce release/{slug}/{platform}/{version};
+# this block demonstrates extending them with a host-OS platform default and
+# a customized metadata list (which replaces the default list wholesale).
+tag_release:
+  default_platform_by_os: "macosx=ios, windows=android, linux=android"
+  metadata:
+    - { label: "Brand dir",   value: "{brand_dir}" }
+    - { label: "App",         json_key: appName }
+    - { label: "Version",     json_key: pubspec_version }
+    - { label: "Platform",    value: "{platform}" }
+    - { label: "Bundle ID",   json_key: iosBundleIdentifier }
+    - { label: "Package",     json_key: packageName }
+    - { label: "Base commit", value: "{commit}" }
+    - { label: "Flutter",     command: ["flutter", "--version"], first_line: true }
+    - { label: "Tagged by",   value: "{git_user}" }
+    - { label: "Date",        value: "{date}" }

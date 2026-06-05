@@ -92,6 +92,13 @@ All commands run from the Flutter project root:
 --check                        # Verify project files match transmute.json (read-only)
 --verify                       # Interactive check with fix prompts
 --executepostprocess           # Re-run post-switch pipeline without switching
+--tagrelease <brand_dir>       # Tag a release as an annotated git tag (see below)
+
+# --tagrelease options
+--platform <p>                 # ios|android|windows|macosx|linux (prompts if unresolved)
+--note "..."                   # Note paragraph in the annotation (repeatable)
+--push                         # Push the tag to origin after creating it
+--force                        # Overwrite an existing tag of the same name
 
 # Utilities
 --showdefaultyaml              # Print built-in default operations
@@ -114,6 +121,29 @@ All commands run from the Flutter project root:
 -native_splash                 # Skip native splash generation
 -pub_get                       # Skip flutter pub get
 ```
+
+### Release Tagging (`--tagrelease`)
+
+Records a branded release as an annotated git tag at the current `HEAD`,
+capturing the brand's version and metadata. Cross-platform (no `bash`/`jq`/
+`sed`/`date`). Refuses on a dirty working tree or an existing tag (use
+`--force`); under `--dryrun` these become warnings and the preview is shown.
+
+Configured via an optional `tag_release:` block in `master_transmute.yaml`.
+Shipped defaults produce `release/{slug}/{platform}/{version}` with zero config;
+a user block overrides scalar keys individually, and a `metadata:` list replaces
+the default list wholesale. Keys: `tag_template`, `slug_strip_pattern`
+(repeatedly stripped from the brand-dir basename to form `{slug}`),
+`version_field`, `required_files`, `title`, `default_platform`,
+`default_platform_by_os` (host-OS-keyed, e.g. `"macosx=ios, windows=android"`),
+and `metadata`. Each `metadata` entry has a `label` plus one source: `value`
+(template), `json_key` (from transmute.json), `file`+`yaml_key` (from a brand
+YAML file), or `command` (+`first_line`) for shell output. Built-in tokens:
+`{slug} {platform} {version} {brand_dir} {commit} {git_user} {date}` plus any
+transmute.json key; missing tokens render as `unknown`.
+
+Platform resolution order: `--platform` → `default_platform_by_os[host]` →
+`default_platform` → interactive prompt (`--fatal-prompts` errors instead).
 
 ## Common Workflows
 

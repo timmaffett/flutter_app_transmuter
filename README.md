@@ -625,6 +625,100 @@ post_switch_operations:
 
 ---
 
+## 🏷️ Tagging Releases (`--tagrelease`)
+
+Record a branded release as an **annotated git tag** pointing at the current
+`HEAD` commit, capturing the brand's version and metadata in the tag message.
+Because brand directories are committed and `--switch` is deterministic, the
+pair *(commit, brand dir)* reproduces the exact built source — so you tag the
+clean canonical commit, never a mutated working tree.
+
+This is a cross-platform (Windows/macOS/Linux) replacement for a shell tagging
+script: no `bash`, `jq`, `sed`, or `date` required.
+
+```bash
+# Tag a release (brand dir is required; platform is prompted if not resolved)
+dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios
+
+# Add one or more note paragraphs to the annotation
+dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios \
+  --note="Hotfix for iOS 26 crash"
+
+# Create and push in one step
+dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --push
+
+# Overwrite an existing tag of the same name
+dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --force
+
+# Preview without creating anything
+dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --dryrun
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--tagrelease=<brand_dir>` | Brand directory to tag (**required**). |
+| `--platform=<p>` | Release platform: `ios`, `android`, `windows`, `macosx`, `linux`. |
+| `--note="..."` | Note paragraph added to the annotation (repeatable). |
+| `--push` | Push the tag to `origin` after creating it. |
+| `--force` | Overwrite an existing tag of the same name. |
+| `--dryrun` | Preview the tag name and annotation; create/push nothing. |
+
+**Behavior:**
+
+- Refuses to run if the working tree is **dirty** (commit your canonical state
+  first) or if the tag **already exists** (use `--force`). Under `--dryrun`
+  these become warnings and the preview is shown anyway.
+- The release **platform** is resolved in this order: `--platform` →
+  `default_platform_by_os` (matching the host OS) → `default_platform` →
+  interactive prompt. With `--fatal-prompts`, an unresolved platform is a hard
+  error instead of a prompt (useful in CI).
+
+### Configuration (`tag_release:` in `master_transmute.yaml`)
+
+The command ships with general defaults that produce
+`release/{slug}/{platform}/{version}` with zero config. Override or extend them
+with a `tag_release:` block:
+
+```yaml
+tag_release:
+  tag_template: "release/{slug}/{platform}/{version}"  # tag name template
+  slug_strip_pattern: '_[0-9]+$'    # repeatedly stripped from the brand-dir basename
+  version_field: pubspec_version     # transmute.json key supplying {version}
+  required_files: [transmute.json]   # refuse if any are missing in the brand dir
+  title: "Release: {appName}"        # first line of the annotation
+  default_platform: ios              # optional single default platform
+  default_platform_by_os: "macosx=ios, windows=android"  # optional host-OS-keyed defaults
+  metadata:                          # ordered annotation lines
+    - { label: "Brand dir",     value: "{brand_dir}" }
+    - { label: "Version",       json_key: pubspec_version }
+    - { label: "Bundle ID",     json_key: iosBundleIdentifier }
+    - { label: "Dev team",      json_key: DEVELOPMENT_TEAM }
+    - { label: "Shorebird app", file: shorebird.yaml, yaml_key: app_id }
+    - { label: "Base commit",   value: "{commit}" }
+    - { label: "Flutter",       command: ["flutter", "--version"], first_line: true }
+    - { label: "Tagged by",     value: "{git_user}" }
+    - { label: "Date",          value: "{date}" }
+```
+
+If you supply a `tag_release:` block, scalar keys override the defaults
+individually; a `metadata:` list **replaces** the default list wholesale.
+
+**Metadata source types** — each `metadata` entry has a `label` and exactly one
+source:
+
+| Source | Meaning |
+|--------|---------|
+| `value: "{token}"` | Template string of built-in/JSON tokens. |
+| `json_key: <key>` | Value read from the brand's `transmute.json`. |
+| `file: <f.yaml>` + `yaml_key: <key>` | A key read from a YAML file in the brand dir. |
+| `command: [...]` (+ `first_line: true`) | Stdout of a shell command (failure → `unknown`). |
+
+**Built-in tokens:** `{slug}`, `{platform}`, `{version}`, `{brand_dir}`,
+`{commit}`, `{git_user}`, `{date}`, plus `{<any key in transmute.json>}` (e.g.
+`{appName}`). A missing token renders as `unknown`.
+
 ## 📁 Brand Management
 
 ### Directory Structure
