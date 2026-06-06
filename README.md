@@ -150,6 +150,10 @@ All commands are run from your Flutter project root:
 transmute <options>
 ```
 
+> Options that take a value are written space-separated throughout this README
+> (e.g. `--platform ios`). The `=` form (`--platform=ios`) is also accepted — the
+> two are equivalent.
+
 Operations are **mutually exclusive** — only one can be specified per invocation. (Operations: `--status`, `--check`, `--verify`, `--transmute`, `--copy`, `--diff`, `--update`, `--switch`, `--executepostprocess`)
 
 ---
@@ -238,7 +242,7 @@ transmute --transmute --debug
 
 ---
 
-### `--copy=<brand_dir>`
+### `--copy <brand_dir>`
 
 Copy brand files from a directory into the project using the mappings defined in `master_transmute.yaml`.
 
@@ -255,7 +259,7 @@ The brand directory is a flat folder containing all brand-specific files (icons,
 
 ---
 
-### `--diff` / `--diff=<brand_dir>`
+### `--diff` / `--diff <brand_dir>`
 
 Compare brand files against current project files.
 
@@ -264,7 +268,7 @@ Compare brand files against current project files.
 transmute --diff
 
 # Or specify a directory explicitly
-transmute --diff=../brands/acme
+transmute --diff ../brands/acme
 ```
 
 Files are reported as **identical**, **different**, or **missing**. No files are modified.
@@ -273,7 +277,7 @@ When specifying an explicit directory, it is checked against the `brand_source_d
 
 ---
 
-### `--update` / `--update=<brand_dir>`
+### `--update` / `--update <brand_dir>`
 
 Interactively update brand files from changed project files.
 
@@ -282,7 +286,7 @@ Interactively update brand files from changed project files.
 transmute --update
 
 # Specify a directory explicitly
-transmute --update=../brands/acme
+transmute --update ../brands/acme
 
 # Auto-confirm all prompts (copy project->brand for all diffs)
 transmute --update --yes
@@ -304,7 +308,7 @@ After file updates, a transmute check runs to verify values and optionally updat
 
 ---
 
-### `--switch=<new_brand_dir>`
+### `--switch <new_brand_dir>`
 
 Switch from the current brand to a new one. This is the most comprehensive operation.
 
@@ -357,7 +361,7 @@ Use `-` prefix to skip specific post-switch steps:
 
 ---
 
-### `--executepostprocess` / `--executepostprocess=<brand_dir>`
+### `--executepostprocess` / `--executepostprocess <brand_dir>`
 
 Run only the post-switch operations pipeline without performing a full brand switch. This skips the "update current brand" and "copy new brand" steps, and goes straight to executing the post-switch operations (transmute, rebuild icons, clean, etc.).
 
@@ -366,7 +370,7 @@ Run only the post-switch operations pipeline without performing a full brand swi
 transmute --executepostprocess
 
 # Specify a brand directory explicitly (for $brand_dir substitution in commands)
-transmute --executepostprocess=../brands/acme
+transmute --executepostprocess ../brands/acme
 
 # With flags and step exclusions (same syntax as --switch)
 transmute --executepostprocess +flutterfire -clean
@@ -396,7 +400,7 @@ Useful for reviewing the default operations, piping to a file, or copying specif
 
 ---
 
-### `--writedefaultyaml` / `--writedefaultyaml=<filename>`
+### `--writedefaultyaml` / `--writedefaultyaml <filename>`
 
 Write the default operations YAML to a file as a starting point for customization.
 
@@ -405,7 +409,7 @@ Write the default operations YAML to a file as a starting point for customizatio
 transmute --writedefaultyaml
 
 # Write to a custom filename
-transmute --writedefaultyaml=my_operations.yaml
+transmute --writedefaultyaml my_operations.yaml
 ```
 
 If the file already exists, you'll be prompted before overwriting. This is the recommended way to create a starting point for your own customized operations file.
@@ -426,8 +430,8 @@ These options modify the behavior of the primary operations:
 | `--filevalue` | Auto-answer F (use file value) for transmute/file mismatch prompts |
 | `--fatal-prompts` | Exit with error if any interactive prompt is encountered |
 | `--dryrun` | Preview mode — no files are written to disk |
-| `--debug` | Enable debug output (equivalent to `--verbose=1`) |
-| `--verbose=<N>` | Set verbose debug level (0=off, 1+=debug detail) |
+| `--debug` | Enable debug output (equivalent to `--verbose 1`) |
+| `--verbose <N>` | Set verbose debug level (0=off, 1+=debug detail) |
 | `--help` / `--usage` | Show command line help |
 
 #### Auto-Answer Prompt Options
@@ -678,29 +682,29 @@ script: no `bash`, `jq`, `sed`, or `date` required.
 
 ```bash
 # Tag a release (brand dir is required; platform is prompted if not resolved)
-transmute --tagrelease=branded/fine_335_1535 --platform=ios
+transmute --tagrelease branded/fine_335_1535 --platform ios
 
 # Add one or more note paragraphs to the annotation
-transmute --tagrelease=branded/fine_335_1535 --platform=ios \
-  --note="Hotfix for iOS 26 crash"
+transmute --tagrelease branded/fine_335_1535 --platform ios \
+  --note "Hotfix for iOS 26 crash"
 
 # Create and push in one step
-transmute --tagrelease=branded/fine_335_1535 --platform=ios --push
+transmute --tagrelease branded/fine_335_1535 --platform ios --push
 
 # Overwrite an existing tag of the same name
-transmute --tagrelease=branded/fine_335_1535 --platform=ios --force
+transmute --tagrelease branded/fine_335_1535 --platform ios --force
 
 # Preview without creating anything
-transmute --tagrelease=branded/fine_335_1535 --platform=ios --dryrun
+transmute --tagrelease branded/fine_335_1535 --platform ios --dryrun
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--tagrelease=<brand_dir>` | Brand directory to tag (**required**). |
-| `--platform=<p>` | Release platform: `ios`, `android`, `windows`, `macosx`, `linux`. |
-| `--note="..."` | Note paragraph added to the annotation (repeatable). |
+| `--tagrelease <brand_dir>` | Brand directory to tag (**required**). |
+| `--platform <p>` | Release platform: `ios`, `android`, `windows`, `macosx`, `linux`. |
+| `--note "..."` | Note paragraph added to the annotation (repeatable). |
 | `--push` | Push the tag to `origin` after creating it. |
 | `--force` | Overwrite an existing tag of the same name. |
 | `--dryrun` | Preview the tag name and annotation; create/push nothing. |

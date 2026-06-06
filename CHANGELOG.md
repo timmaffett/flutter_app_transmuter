@@ -1,5 +1,9 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.5
+
+* Normalize use of space (instead of optional '=') in README docs for command lines
+
 ## 2.1.4
 
 * Document global activation (`dart pub global activate flutter_app_transmuter`) at the top of the
