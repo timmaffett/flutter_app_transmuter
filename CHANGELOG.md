@@ -1,6 +1,6 @@
 # Changelog for flutter_app_transmuter
 
-## 2.1.4
+## 2.1.3
 
 * Add `--tagrelease <brand_dir>` command to record a branded release as an annotated git tag
   (cross-platform replacement for shell tagging scripts — no `bash`/`jq`/`sed`/`date` required).
@@ -15,9 +15,6 @@
   sync with `pubspec.yaml`.
 * Document `--tagrelease` and the `tag_release:` config in README and AGENTS docs; add a
   `tag_release:` example to the example project.
-
-## 2.1.3
-
 * Improve README.md
 * Add `git_restore` transmute operation type to restore files to git `HEAD` baseline.
 * Execute `git_restore` operations in a dedicated first pass before all value-driven operations.
