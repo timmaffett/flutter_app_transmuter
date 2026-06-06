@@ -1,5 +1,11 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.4
+
+* Document global activation (`dart pub global activate flutter_app_transmuter`) at the top of the
+  README as the recommended install, and use the `transmute` executable in all README examples
+  (instead of `dart run flutter_app_transmuter:main`).
+
 ## 2.1.3
 
 * Add `--tagrelease <brand_dir>` command to record a branded release as an annotated git tag
@@ -9,12 +15,10 @@
 * Configurable via an optional `tag_release:` block in `master_transmute.yaml` (tag-name template,
   slug strip pattern, required files, platform defaults, and metadata sources: `value`, `json_key`,
   `file`+`yaml_key`, `command`). Shipped defaults produce `release/{slug}/{platform}/{version}`.
-* Platform resolution order: `--platform` → `default_platform_by_os` (host-OS-keyed) →
-  `default_platform` → interactive prompt.
-* Add `--version` flag and `Constants.packageVersion`, with a drift-guard test ensuring it stays in
-  sync with `pubspec.yaml`.
-* Document `--tagrelease` and the `tag_release:` config in README and AGENTS docs; add a
-  `tag_release:` example to the example project.
+* Platform resolution order: `--platform` → `default_platform_by_os` (host-OS-keyed) `default_platform` → interactive prompt.
+* Add `--version` flag and `Constants.packageVersion`, with a drift-guard test ensuring it stays in sync with `pubspec.yaml`.
+* Document `--tagrelease` and the `tag_release:` config in README and AGENTS docs; add a `tag_release:` example to the example project.
+* Add "Reproducing a tagged build later" and "Inspecting release tags" sections to the `--tagrelease` documentation.
 * Improve README.md
 * Add `git_restore` transmute operation type to restore files to git `HEAD` baseline.
 * Execute `git_restore` operations in a dedicated first pass before all value-driven operations.
