@@ -25,7 +25,48 @@ Because all operations are defined as regex-based transformations in YAML, the b
 
 ## 📥 Installation
 
-Add to your `pubspec.yaml` under `dev_dependencies`:
+### Recommended: activate globally from pub.dev
+
+Install the command-line tool globally so it's available on your `PATH`:
+
+```bash
+dart pub global activate flutter_app_transmuter
+```
+
+This registers the `transmute` executable (plus the aliases `transmuter`,
+`app_transmuter`, and `flutter_app_transmuter`). You can then run it from any
+Flutter project root:
+
+```bash
+transmute --transmute
+```
+
+Other variants:
+
+```bash
+# A specific version from pub.dev
+dart pub global activate flutter_app_transmuter <version>
+
+# Activate from a LOCAL checkout instead of pub.dev (for testing before publishing)
+dart pub global activate --source path /path/to/flutter_app_transmuter
+
+# Deactivate later
+dart pub global deactivate flutter_app_transmuter
+```
+
+> If `dart pub global activate` warns that the pub-cache `bin` directory isn't on
+> your `PATH`, add the directory it names (typically `~/.pub-cache/bin` on
+> macOS/Linux, or `%LOCALAPPDATA%\Pub\Cache\bin` on Windows) to your `PATH`.
+
+> **The rest of this README assumes you have activated the tool globally and uses
+> `transmute` as the command in all examples.** If you instead added it as a dev
+> dependency (below), replace `transmute` with `dart run flutter_app_transmuter:main`
+> in every example.
+
+### Alternative: as a project dev dependency
+
+Add it to your project's `pubspec.yaml` under `dev_dependencies` and invoke it
+via `dart run`:
 
 ```yaml
 dev_dependencies:
@@ -33,10 +74,9 @@ dev_dependencies:
     path: ../path/to/flutter_app_transmuter
 ```
 
-Then run:
-
 ```bash
 dart pub get
+dart run flutter_app_transmuter:main --transmute
 ```
 
 ---
@@ -55,7 +95,7 @@ dart pub get
 2. Run the transmuter:
 
 ```bash
-dart run flutter_app_transmuter:main --transmute
+transmute --transmute
 ```
 
 That's it! All Android and iOS configuration files will be updated to match.
@@ -107,7 +147,7 @@ Place this file in your Flutter project's root directory. It defines the values 
 All commands are run from your Flutter project root:
 
 ```bash
-dart run flutter_app_transmuter:main <options>
+transmute <options>
 ```
 
 Operations are **mutually exclusive** — only one can be specified per invocation. (Operations: `--status`, `--check`, `--verify`, `--transmute`, `--copy`, `--diff`, `--update`, `--switch`, `--executepostprocess`)
@@ -119,7 +159,7 @@ Operations are **mutually exclusive** — only one can be specified per invocati
 Show the current brand status: diffs brand files against the project and checks transmute values.
 
 ```bash
-dart run flutter_app_transmuter:main --status
+transmute --status
 ```
 
 This is a read-only operation. It displays:
@@ -134,7 +174,7 @@ This is a read-only operation. It displays:
 Check that all project files match the values defined in `transmute.json`. No files are modified.
 
 ```bash
-dart run flutter_app_transmuter:main --check
+transmute --check
 ```
 
 Each operation is reported as **MATCH**, **MISMATCH**, or **SKIP**:
@@ -154,7 +194,7 @@ Each operation is reported as **MATCH**, **MISMATCH**, or **SKIP**:
 Interactive verification — like `--check`, but offers to fix mismatches.
 
 ```bash
-dart run flutter_app_transmuter:main --verify
+transmute --verify
 ```
 
 For each mismatch, you're prompted:
@@ -179,7 +219,7 @@ For missing keys, you're offered to add them to `transmute.json` from the curren
 Run all transmute operations — applies values from `transmute.json` to project files.
 
 ```bash
-dart run flutter_app_transmuter:main --transmute
+transmute --transmute
 ```
 
 This is the main operation. It reads `transmute.json`, loads the operations from the built-in defaults (and merges any user `transmute_operations.yaml`), then executes each operation in order.
@@ -190,10 +230,10 @@ Execution is two-pass:
 
 ```bash
 # Dry run to preview changes
-dart run flutter_app_transmuter:main --transmute --dryrun
+transmute --transmute --dryrun
 
 # With debug output
-dart run flutter_app_transmuter:main --transmute --debug
+transmute --transmute --debug
 ```
 
 ---
@@ -203,7 +243,7 @@ dart run flutter_app_transmuter:main --transmute --debug
 Copy brand files from a directory into the project using the mappings defined in `master_transmute.yaml`.
 
 ```bash
-dart run flutter_app_transmuter:main --copy ../brands/acme
+transmute --copy ../brands/acme
 ```
 
 This:
@@ -221,10 +261,10 @@ Compare brand files against current project files.
 
 ```bash
 # Use the brand_source_directory from transmute.json
-dart run flutter_app_transmuter:main --diff
+transmute --diff
 
 # Or specify a directory explicitly
-dart run flutter_app_transmuter:main --diff=../brands/acme
+transmute --diff=../brands/acme
 ```
 
 Files are reported as **identical**, **different**, or **missing**. No files are modified.
@@ -239,16 +279,16 @@ Interactively update brand files from changed project files.
 
 ```bash
 # Use the brand_source_directory from transmute.json
-dart run flutter_app_transmuter:main --update
+transmute --update
 
 # Specify a directory explicitly
-dart run flutter_app_transmuter:main --update=../brands/acme
+transmute --update=../brands/acme
 
 # Auto-confirm all prompts (copy project->brand for all diffs)
-dart run flutter_app_transmuter:main --update --yes
+transmute --update --yes
 
 # Non-interactive: use project files, apply transmute values
-dart run flutter_app_transmuter:main --update --projectfile --transmutevalue
+transmute --update --projectfile --transmutevalue
 ```
 
 For each changed file, you're prompted whether to update the brand copy. If the brand file is **newer** than the project file, a timestamp warning is shown with options:
@@ -270,19 +310,19 @@ Switch from the current brand to a new one. This is the most comprehensive opera
 
 ```bash
 # Basic switch (interactive prompts)
-dart run flutter_app_transmuter:main --switch ../brands/newbrand
+transmute --switch ../brands/newbrand
 
 # Non-interactive: use project files, apply transmute values
-dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue
+transmute --switch ../brands/newbrand --projectfile --transmutevalue
 
 # With post-switch flags
-dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue +flutterfire +build
+transmute --switch ../brands/newbrand --projectfile --transmutevalue +flutterfire +build
 
 # Exclude specific post-switch steps
-dart run flutter_app_transmuter:main --switch ../brands/newbrand --projectfile --transmutevalue -clean -pub_get
+transmute --switch ../brands/newbrand --projectfile --transmutevalue -clean -pub_get
 
 # Auto-confirm everything (yes to all prompts, project->brand for file diffs)
-dart run flutter_app_transmuter:main --switch ../brands/newbrand --yes
+transmute --switch ../brands/newbrand --yes
 ```
 
 The switch performs these steps in order:
@@ -323,16 +363,16 @@ Run only the post-switch operations pipeline without performing a full brand swi
 
 ```bash
 # Run post-switch pipeline (uses brand_source_directory from transmute.json for $brand_dir)
-dart run flutter_app_transmuter:main --executepostprocess
+transmute --executepostprocess
 
 # Specify a brand directory explicitly (for $brand_dir substitution in commands)
-dart run flutter_app_transmuter:main --executepostprocess=../brands/acme
+transmute --executepostprocess=../brands/acme
 
 # With flags and step exclusions (same syntax as --switch)
-dart run flutter_app_transmuter:main --executepostprocess +flutterfire -clean
+transmute --executepostprocess +flutterfire -clean
 
 # Skip the transmute step, only run launcher icons and clean
-dart run flutter_app_transmuter:main --executepostprocess -transmute_command -native_splash -pub_get
+transmute --executepostprocess -transmute_command -native_splash -pub_get
 ```
 
 This is useful when:
@@ -349,7 +389,7 @@ The same `+flag` and `-stepname` options used with `--switch` work here. See [Po
 Print the built-in default transmute operations YAML to stdout.
 
 ```bash
-dart run flutter_app_transmuter:main --showdefaultyaml
+transmute --showdefaultyaml
 ```
 
 Useful for reviewing the default operations, piping to a file, or copying specific sections.
@@ -362,10 +402,10 @@ Write the default operations YAML to a file as a starting point for customizatio
 
 ```bash
 # Write to transmute_operations.yaml (default)
-dart run flutter_app_transmuter:main --writedefaultyaml
+transmute --writedefaultyaml
 
 # Write to a custom filename
-dart run flutter_app_transmuter:main --writedefaultyaml=my_operations.yaml
+transmute --writedefaultyaml=my_operations.yaml
 ```
 
 If the file already exists, you'll be prompted before overwriting. This is the recommended way to create a starting point for your own customized operations file.
@@ -429,10 +469,10 @@ The transmuter's operations are defined in YAML and are fully customizable. Ther
 
 ```bash
 # Print to terminal
-dart run flutter_app_transmuter:main --showdefaultyaml
+transmute --showdefaultyaml
 
 # Write to a file for customization
-dart run flutter_app_transmuter:main --writedefaultyaml
+transmute --writedefaultyaml
 ```
 
 ### Operation Types
@@ -518,7 +558,7 @@ Under the hood, transmuter tries `git restore <file>` first, and falls back to `
 Create a `transmute_operations.yaml` in your project root to customize operations. Use `--writedefaultyaml` to generate a starting point:
 
 ```bash
-dart run flutter_app_transmuter:main --writedefaultyaml
+transmute --writedefaultyaml
 ```
 
 Then edit the file. The merge rules are:
@@ -638,20 +678,20 @@ script: no `bash`, `jq`, `sed`, or `date` required.
 
 ```bash
 # Tag a release (brand dir is required; platform is prompted if not resolved)
-dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios
+transmute --tagrelease=branded/fine_335_1535 --platform=ios
 
 # Add one or more note paragraphs to the annotation
-dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios \
+transmute --tagrelease=branded/fine_335_1535 --platform=ios \
   --note="Hotfix for iOS 26 crash"
 
 # Create and push in one step
-dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --push
+transmute --tagrelease=branded/fine_335_1535 --platform=ios --push
 
 # Overwrite an existing tag of the same name
-dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --force
+transmute --tagrelease=branded/fine_335_1535 --platform=ios --force
 
 # Preview without creating anything
-dart run flutter_app_transmuter:main --tagrelease=branded/fine_335_1535 --platform=ios --dryrun
+transmute --tagrelease=branded/fine_335_1535 --platform=ios --dryrun
 ```
 
 **Options:**
@@ -727,7 +767,7 @@ checking out the tag and switching to its brand:
 
 ```bash
 git checkout release/<slug>/<platform>/<version>     # e.g. release/fine/ios/2.0.6+22
-dart run flutter_app_transmuter:main --switch <brand_dir>
+transmute --switch <brand_dir>
 # ...then run your build/release tooling for that platform.
 ```
 
@@ -858,22 +898,22 @@ command.
 
 ```bash
 # 1. Initial setup: copy brand files into a fresh project
-dart run flutter_app_transmuter:main --copy ../brands/acme
+transmute --copy ../brands/acme
 
 # 2. Apply all transmute operations
-dart run flutter_app_transmuter:main --transmute
+transmute --transmute
 
 # 3. Check status at any time
-dart run flutter_app_transmuter:main --status
+transmute --status
 
 # 4. After making project changes, update the brand directory
-dart run flutter_app_transmuter:main --update
+transmute --update
 
 # 5. Switch to a different brand (updates current brand first)
-dart run flutter_app_transmuter:main --switch ../brands/globex +flutterfire
+transmute --switch ../brands/globex +flutterfire
 
 # 6. Quick switch without cleaning
-dart run flutter_app_transmuter:main --switch ../brands/acme -clean -pub_get
+transmute --switch ../brands/acme -clean -pub_get
 ```
 
 ---
@@ -922,41 +962,41 @@ The transmuter ships with 14 built-in operations. Use `--showdefaultyaml` to see
 Always use `--dryrun` when trying something new:
 
 ```bash
-dart run flutter_app_transmuter:main --transmute --dryrun
+transmute --transmute --dryrun
 ```
 
 ### Create a Custom Operations File
 
 ```bash
 # Generate a starting point with all defaults
-dart run flutter_app_transmuter:main --writedefaultyaml
+transmute --writedefaultyaml
 
 # Edit transmute_operations.yaml to add your custom operations
 # Then run with your customizations active
-dart run flutter_app_transmuter:main --transmute
+transmute --transmute
 ```
 
 ### Verify After Changes
 
 ```bash
 # Quick read-only check
-dart run flutter_app_transmuter:main --check
+transmute --check
 
 # Interactive fix-up
-dart run flutter_app_transmuter:main --verify
+transmute --verify
 ```
 
 ### Automate in CI/Scripts
 
 ```bash
 # Non-interactive brand switch for CI (use project files, apply transmute values)
-dart run flutter_app_transmuter:main --switch ../brands/release_brand --projectfile --transmutevalue +build
+transmute --switch ../brands/release_brand --projectfile --transmutevalue +build
 
 # Strict CI mode: fail if any unexpected prompt is encountered
-dart run flutter_app_transmuter:main --switch ../brands/release_brand --projectfile --transmutevalue --fatal-prompts +build
+transmute --switch ../brands/release_brand --projectfile --transmutevalue --fatal-prompts +build
 
 # Or use --yes for full auto-confirm
-dart run flutter_app_transmuter:main --switch ../brands/release_brand --yes +build
+transmute --switch ../brands/release_brand --yes +build
 ```
 
 ---
