@@ -32,6 +32,12 @@ class RegExConstants {
 }
 
 class Constants {
+  /// Version printed by `--version`. Hardcoded so it works under `dart run`,
+  /// global activation, or a compiled exe (where pubspec.yaml is unavailable).
+  /// MUST be bumped alongside `version:` in pubspec.yaml on every release;
+  /// test/version_test.dart guards against drift.
+  static const String packageVersion = '2.1.3';
+
   static const String transmuteDefintionFile = 'transmute.json';
   static const String transmuteOperationsFile = 'transmute_operations.yaml';
   static const String brandSourceDirectoryKey = 'brand_source_directory';

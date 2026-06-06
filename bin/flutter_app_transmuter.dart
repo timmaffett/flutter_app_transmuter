@@ -52,7 +52,8 @@ enum Options {
   push('push'),
   force('force'),
   showDefaultYaml('showdefaultyaml'),
-  writeDefaultYaml('writedefaultyaml');
+  writeDefaultYaml('writedefaultyaml'),
+  version('version');
 
   const Options(this.name);
 
@@ -229,6 +230,12 @@ void main(List<String> args) async {
       negatable: false,
       help:
           'Prints help on how to use the command. The same as --${Options.help.name}.',
+    )
+    ..addFlag(
+      Options.version.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Print the flutter_app_transmuter version and exit.',
     );
 
   // Extract +flag and -exclude arguments (e.g. +flutterfire, -clean) before arg parsing
@@ -288,6 +295,11 @@ void main(List<String> args) async {
   }
   if (FlutterAppTransmuter.autoTransmuteValue && FlutterAppTransmuter.autoFileValue) {
     print('Error: --transmutevalue and --filevalue are mutually exclusive.'.brightRed);
+    return;
+  }
+
+  if (parsedArgs[Options.version.name] == true) {
+    print('flutter_app_transmuter ${Constants.packageVersion}');
     return;
   }
 
