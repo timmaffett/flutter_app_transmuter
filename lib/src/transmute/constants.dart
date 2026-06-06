@@ -27,7 +27,9 @@ enum TransmuterKeys {
 class RegExConstants {
   static final packageInMainActivity = RegExp(r'^(package (?:\.|\w)+)',
             caseSensitive: true, multiLine: false);
-  static final versionInPubspecYaml = RegExp(r'^version:\s*(.+)$',
+  // Capture only the version token (\S+), so a trailing inline YAML comment on
+  // the version line (e.g. `version: 2.1.4  # note`) is not included.
+  static final versionInPubspecYaml = RegExp(r'^version:\s*(\S+)',
         caseSensitive: true, multiLine: true);
 }
 
@@ -36,7 +38,7 @@ class Constants {
   /// global activation, or a compiled exe (where pubspec.yaml is unavailable).
   /// MUST be bumped alongside `version:` in pubspec.yaml on every release;
   /// test/version_test.dart guards against drift.
-  static const String packageVersion = '2.1.3';
+  static const String packageVersion = '2.1.4';
 
   static const String transmuteDefintionFile = 'transmute.json';
   static const String transmuteOperationsFile = 'transmute_operations.yaml';
