@@ -719,6 +719,42 @@ source:
 `{commit}`, `{git_user}`, `{date}`, plus `{<any key in transmute.json>}` (e.g.
 `{appName}`). A missing token renders as `unknown`.
 
+### Reproducing a tagged build later
+
+A release tag records the base commit and the brand dir, and `--switch` is
+deterministic — so you can recreate the exact built source for any release by
+checking out the tag and switching to its brand:
+
+```bash
+git checkout release/<slug>/<platform>/<version>     # e.g. release/fine/ios/2.0.6+22
+dart run flutter_app_transmuter:main --switch <brand_dir>
+# ...then run your build/release tooling for that platform.
+```
+
+The base commit and brand dir to use are both recorded in the tag's annotation
+(`git show <tag>`). When finished, return to your working branch and switch back
+to your canonical brand before committing anything.
+
+> If your build/release pipeline is, for example, Shorebird, this is also where
+> you would run the matching `shorebird release`/`shorebird patch` for the
+> tagged `<version>`. The transmuter only handles the source-reproducing
+> `checkout` + `--switch`; the actual build command is whatever your project
+> uses.
+
+### Inspecting release tags
+
+Tag names follow `tag_template` (default `release/{slug}/{platform}/{version}`),
+so the `{slug}`/`{platform}` segments make them easy to filter, and the
+annotation holds the full metadata you configured:
+
+```bash
+git tag -l 'release/*'                       # all releases
+git tag -l 'release/fine/*'                  # all releases for one slug
+git tag -l 'release/*/ios/*'                 # all iOS releases
+git tag -n99 -l 'release/fine/ios/2.0.6+22'  # full annotation for one release
+git show release/fine/ios/2.0.6+22           # annotation + the commit it points at
+```
+
 ## 📁 Brand Management
 
 ### Directory Structure
