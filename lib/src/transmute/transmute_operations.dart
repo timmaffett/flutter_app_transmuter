@@ -42,6 +42,13 @@ class TransmuteOperation {
   final bool multiline;
   final String? replacement;
   final bool alwaysRun;
+  final bool? _valueIsFlagExplicit;
+
+  /// True when the json_key is only an enable-flag for this operation: the
+  /// replacement text never uses $value, so the key's value can never be a
+  /// meaningful file-derived string (e.g. Info.plist block-removal operations).
+  /// Explicit `value_is_flag:` in YAML overrides the auto-detection.
+  bool get valueIsFlag => _valueIsFlagExplicit ?? (replacement != null && !replacement!.contains(r'$value'));
 
   TransmuteOperation({
     required this.id,
@@ -57,7 +64,8 @@ class TransmuteOperation {
     this.multiline = false,
     this.replacement,
     this.alwaysRun = false,
-  });
+    bool? valueIsFlag,
+  }) : _valueIsFlagExplicit = valueIsFlag;
 
   factory TransmuteOperation.fromYamlMap(YamlMap map) {
     return TransmuteOperation(
@@ -74,6 +82,7 @@ class TransmuteOperation {
       multiline: (map['multiline'] as bool?) ?? false,
       replacement: map['replacement'] as String?,
       alwaysRun: (map['always_run'] as bool?) ?? ((map['type'] as String?) == 'git_restore'),
+      valueIsFlag: map['value_is_flag'] as bool?,
     );
   }
 }
@@ -140,6 +149,13 @@ class TransmuteOperationRunner {
         if (FlutterAppTransmuter.verboseDebug > 0) {
           print('Skipping ${op.id}: no value for json_key "${op.jsonKey}"'
               '${op.fallbackKey != null ? ' or fallback_key "${op.fallbackKey}"' : ''}'.brightYellow);
+        }
+        continue;
+      }
+
+      if (op.valueIsFlag && isFlagValueDisabled(value)) {
+        if (FlutterAppTransmuter.verboseDebug > 0) {
+          print('Skipping ${op.id}: flag json_key "${op.jsonKey}" is "$value" (disabled)'.brightYellow);
         }
         continue;
       }
@@ -296,6 +312,12 @@ class TransmuteOperationRunner {
         continue;
       }
 
+      if (op.valueIsFlag && isFlagValueDisabled(value)) {
+        print('  SKIP:     [${op.id}] flag json_key "${op.jsonKey}" is "$value" (disabled)'.brightYellow);
+        skippedOps++;
+        continue;
+      }
+
       final color = _colorForPlatform(op.platform);
 
       switch (op.type) {
@@ -346,7 +368,8 @@ class TransmuteOperationRunner {
   static void checkAllInteractive(
       List<TransmuteOperation> operations,
       Map<String, dynamic> transmuteData,
-      {bool autoConfirm = false}) {
+      {bool autoConfirm = false,
+      String transmuteJsonPath = Constants.transmuteDefintionFile}) {
     int matched = 0;
     int mismatched = 0;
     int skippedOps = 0;
@@ -371,6 +394,16 @@ class TransmuteOperationRunner {
       final value = resolveValue(op, transmuteData);
 
       if (value == null || value.isEmpty) {
+        // Flag ops: an absent key is a valid "disabled" configuration, and the
+        // regex match is file content to remove, NOT a config value - never
+        // offer to adopt it into transmute.json (see value_is_flag).
+        if (op.valueIsFlag) {
+          print('  SKIP:     [${op.id}] flag json_key "${op.jsonKey}" not set - operation disabled '
+              '(add "${op.jsonKey}": "true" to transmute.json to enable)'.brightYellow);
+          skippedOps++;
+          continue;
+        }
+
         // No value in transmute.json - try to extract from file and offer to add
         if (op.type == 'move_activity' || op.file == null || op.regex == null) {
           print('  SKIP:     [${op.id}] no value for json_key "${op.jsonKey}"'
@@ -434,6 +467,12 @@ class TransmuteOperationRunner {
       }
 
       // Value exists in transmute.json - check against the file
+      if (op.valueIsFlag && isFlagValueDisabled(value)) {
+        print('  SKIP:     [${op.id}] flag json_key "${op.jsonKey}" is "$value" (disabled)'.brightYellow);
+        skippedOps++;
+        continue;
+      }
+
       if (op.type == 'move_activity') {
         final result = _checkMoveActivity(value);
         if (result == null) {
@@ -461,8 +500,49 @@ class TransmuteOperationRunner {
 
       final rawValue = extractCurrentFileValue(op);
       if (rawValue == null) {
+        if (op.valueIsFlag) {
+          // Flag op: pattern gone means the operation has been applied.
+          print(color('  MATCH:    [${op.id}] ${op.description}'));
+          matched++;
+          continue;
+        }
         print('  SKIP:     [${op.id}] pattern not matched in ${op.file}'.brightYellow);
         skippedOps++;
+        continue;
+      }
+
+      // Flag op with pattern still matching: the operation has not been applied.
+      // The raw match is content the operation removes, never a config value, so
+      // the only choices are apply (T) or leave alone (N) - never file -> json.
+      if (op.valueIsFlag) {
+        print('  MISMATCH: [${op.id}] ${op.description}'.brightRed);
+        print('              flag json_key "${op.jsonKey}" is enabled but the operation '
+            'has not been applied (pattern still matches in ${op.file})');
+
+        String choice;
+        if (FlutterAppTransmuter.autoTransmuteValue) {
+          choice = 't';
+          print('              Auto-answering T (--transmutevalue)'.brightYellow);
+        } else if (FlutterAppTransmuter.autoFileValue) {
+          choice = 'n';
+          print('              Skipping (--filevalue): flag keys never adopt file content'.brightYellow);
+        } else if (autoConfirm || FlutterAppTransmuter.autoSkip) {
+          choice = 'n';
+          print('              Auto-skipping mismatch (${autoConfirm ? '--yes' : '--skip'})'.brightYellow);
+        } else if (FlutterAppTransmuter.fatalPrompts) {
+          print('              ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
+          exit(1);
+        } else {
+          stdout.write('              (T) apply operation to file, or (N) no change (default N): '.brightYellow);
+          choice = (stdin.readLineSync()?.trim().toLowerCase() ?? 'n');
+        }
+
+        if (choice == 't') {
+          executeRegexReplace(op, value);
+          updatedFiles++;
+        } else {
+          mismatched++;
+        }
         continue;
       }
 
@@ -537,7 +617,7 @@ class TransmuteOperationRunner {
 
     // Apply accumulated json updates
     if (jsonUpdates.isNotEmpty) {
-      _applyJsonUpdates(jsonUpdates);
+      _applyJsonUpdates(jsonUpdates, transmuteJsonPath);
     }
 
     print('');
@@ -581,8 +661,7 @@ class TransmuteOperationRunner {
   }
 
   /// Apply accumulated key updates to transmute.json on disk.
-  static void _applyJsonUpdates(Map<String, String> updates) {
-    final transmuteJsonPath = Constants.transmuteDefintionFile;
+  static void _applyJsonUpdates(Map<String, String> updates, String transmuteJsonPath) {
     if (!File(transmuteJsonPath).existsSync()) {
       print('ERROR: $transmuteJsonPath not found, cannot apply updates'.brightRed);
       return;
@@ -618,8 +697,20 @@ class TransmuteOperationRunner {
     final match = regexPattern.firstMatch(contents);
 
     if (match == null) {
+      if (op.valueIsFlag) {
+        // Flag op: pattern gone means the operation has been applied.
+        return true;
+      }
       print('  SKIP:     [${op.id}] pattern not matched in $filePath'.brightYellow);
       return null;
+    }
+
+    if (op.valueIsFlag) {
+      // Flag op: pattern still matching means the operation has not been applied.
+      print('  MISMATCH: [${op.id}] ${op.description}'.brightRed);
+      print('              flag json_key "${op.jsonKey}" is enabled but the operation '
+          'has not been applied (pattern still matches in $filePath)');
+      return false;
     }
 
     final currentValue = match.group(1) ?? '';
@@ -688,6 +779,13 @@ class TransmuteOperationRunner {
     print('              file at:   ${found!.path.brightBlue}');
     print('              transmute.json specifies:  .../$packagePath/MainActivity.*'.brightGreen);
     return false;
+  }
+
+  /// For value_is_flag operations: a value of false/no/0/off (any case)
+  /// explicitly disables the operation, same as an absent key.
+  static bool isFlagValueDisabled(String value) {
+    const disabledValues = {'false', 'no', '0', 'off'};
+    return disabledValues.contains(value.trim().toLowerCase());
   }
 
   static String? resolveValue(TransmuteOperation op, Map<String, dynamic> data) {

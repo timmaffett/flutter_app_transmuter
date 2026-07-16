@@ -707,7 +707,7 @@ post_switch_operations:
       final op = TransmuteOperation(
         id: 'test', description: 'test', type: 'regex_replace',
         platform: 'android', file: filePath, jsonKey: 'key',
-        regex: r'applicationId\s*=\s*"(.*)"', replacement: 'r',
+        regex: r'applicationId\s*=\s*"(.*)"', replacement: r'applicationId = "$value"',
       );
       expect(TransmuteOperationRunner.checkRegexReplace(op, 'value'), isNull);
     });
@@ -825,6 +825,287 @@ post_switch_operations:
         platform: 'android', jsonKey: 'key',
       );
       expect(TransmuteOperationRunner.extractCurrentFileValue(op), isNull);
+    });
+  });
+
+  // -----------------------------------------------------------
+  // value_is_flag detection
+  // -----------------------------------------------------------
+  group('valueIsFlag', () {
+    test('parses explicit value_is_flag true from YAML', () {
+      final yaml = '''
+operations:
+  - id: flag_op
+    type: regex_replace
+    json_key: someFlag
+    regex: 'pattern'
+    replacement: 'fixed \$value text'
+    value_is_flag: true
+''';
+      final ops = TransmuteOperationRunner.parseOperationsYaml(yaml);
+      expect(ops[0].valueIsFlag, true);
+    });
+
+    test('explicit value_is_flag false overrides auto-detection', () {
+      final yaml = '''
+operations:
+  - id: not_flag_op
+    type: regex_replace
+    json_key: someKey
+    regex: 'pattern'
+    replacement: 'fixed text with no marker'
+    value_is_flag: false
+''';
+      final ops = TransmuteOperationRunner.parseOperationsYaml(yaml);
+      expect(ops[0].valueIsFlag, false);
+    });
+
+    test('auto-detects flag when replacement has no value marker', () {
+      final yaml = '''
+operations:
+  - id: removal_op
+    type: regex_replace
+    json_key: someRemovalFlag
+    regex: '(<key>Something</key>)'
+    replacement: ""
+''';
+      final ops = TransmuteOperationRunner.parseOperationsYaml(yaml);
+      expect(ops[0].valueIsFlag, true);
+    });
+
+    test('does not auto-detect flag when replacement uses value marker', () {
+      final yaml = '''
+operations:
+  - id: normal_op
+    type: regex_replace
+    json_key: packageName
+    regex: 'applicationId = "(.*)"'
+    replacement: 'applicationId = "\$value"'
+''';
+      final ops = TransmuteOperationRunner.parseOperationsYaml(yaml);
+      expect(ops[0].valueIsFlag, false);
+    });
+
+    test('does not auto-detect flag when there is no replacement', () {
+      final op = TransmuteOperation(
+        id: 'move', description: '', type: 'move_activity', platform: 'android', jsonKey: 'packageName');
+      expect(op.valueIsFlag, false);
+    });
+
+    test('no default operation is a flag operation', () {
+      final ops = TransmuteOperationRunner.parseOperationsYaml(defaultTransmuteOperationsYaml);
+      for (final op in ops) {
+        expect(op.valueIsFlag, false, reason: 'default op ${op.id} should not be flag-gated');
+      }
+    });
+  });
+
+  // -----------------------------------------------------------
+  // isFlagValueDisabled
+  // -----------------------------------------------------------
+  group('isFlagValueDisabled', () {
+    test('recognizes disabled flag values', () {
+      for (final v in ['false', 'FALSE', 'False', 'no', 'NO', '0', 'off', 'OFF']) {
+        expect(TransmuteOperationRunner.isFlagValueDisabled(v), true, reason: '"$v" should disable a flag op');
+      }
+    });
+
+    test('treats other values as enabled', () {
+      for (final v in ['true', 'yes', '1', 'on', 'anything else']) {
+        expect(TransmuteOperationRunner.isFlagValueDisabled(v), false, reason: '"$v" should not disable a flag op');
+      }
+    });
+  });
+
+  // -----------------------------------------------------------
+  // checkRegexReplace flag semantics
+  // -----------------------------------------------------------
+  group('checkRegexReplace flag ops', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('transmute_test_');
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    TransmuteOperation flagOp(String filePath) => TransmuteOperation(
+          id: 'remove_block', description: 'Remove block', type: 'regex_replace',
+          platform: 'ios', file: filePath, jsonKey: 'someRemovalFlag',
+          regex: r'(<key>Something</key>)', replacement: '',
+        );
+
+    test('returns true (applied) when pattern no longer matches', () {
+      final filePath = '${tempDir.path}/test.txt';
+      File(filePath).writeAsStringSync('block already removed');
+      expect(TransmuteOperationRunner.checkRegexReplace(flagOp(filePath), 'true'), true);
+    });
+
+    test('returns false (not applied) when pattern still matches', () {
+      final filePath = '${tempDir.path}/test.txt';
+      File(filePath).writeAsStringSync('<key>Something</key>');
+      expect(TransmuteOperationRunner.checkRegexReplace(flagOp(filePath), 'true'), false);
+    });
+  });
+
+  // -----------------------------------------------------------
+  // executeAll flag gating
+  // -----------------------------------------------------------
+  group('executeAll flag ops', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('transmute_test_');
+      FlutterAppTransmuter.executingDryRun = false;
+      FlutterAppTransmuter.verboseDebug = 0;
+    });
+
+    tearDown(() {
+      tempDir.deleteSync(recursive: true);
+    });
+
+    TransmuteOperation flagOp(String filePath) => TransmuteOperation(
+          id: 'remove_block', description: 'Remove block', type: 'regex_replace',
+          platform: 'ios', file: filePath, jsonKey: 'someRemovalFlag',
+          regex: r'(<key>Something</key>\n)', replacement: '',
+        );
+
+    test('runs flag op when value is true', () {
+      final filePath = '${tempDir.path}/test.txt';
+      File(filePath).writeAsStringSync('<key>Something</key>\nkeep this');
+
+      TransmuteOperationRunner.executeAll([flagOp(filePath)], {'someRemovalFlag': 'true'});
+      expect(File(filePath).readAsStringSync(), 'keep this');
+    });
+
+    test('skips flag op when value is false', () {
+      final filePath = '${tempDir.path}/test.txt';
+      const original = '<key>Something</key>\nkeep this';
+      File(filePath).writeAsStringSync(original);
+
+      TransmuteOperationRunner.executeAll([flagOp(filePath)], {'someRemovalFlag': 'false'});
+      expect(File(filePath).readAsStringSync(), original);
+    });
+  });
+
+  // -----------------------------------------------------------
+  // checkAllInteractive flag ops: never adopt regex match as json value
+  // -----------------------------------------------------------
+  group('checkAllInteractive flag ops', () {
+    late Directory tempDir;
+    late String jsonPath;
+    late String plistPath;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('transmute_test_');
+      jsonPath = '${tempDir.path}/transmute.json';
+      plistPath = '${tempDir.path}/info.plist';
+      FlutterAppTransmuter.executingDryRun = false;
+      FlutterAppTransmuter.verboseDebug = 0;
+      FlutterAppTransmuter.autoSkip = false;
+      FlutterAppTransmuter.autoTransmuteValue = false;
+      FlutterAppTransmuter.autoFileValue = false;
+      FlutterAppTransmuter.fatalPrompts = false;
+    });
+
+    tearDown(() {
+      FlutterAppTransmuter.autoSkip = false;
+      FlutterAppTransmuter.autoTransmuteValue = false;
+      FlutterAppTransmuter.autoFileValue = false;
+      FlutterAppTransmuter.fatalPrompts = false;
+      tempDir.deleteSync(recursive: true);
+    });
+
+    TransmuteOperation flagOp() => TransmuteOperation(
+          id: 'remove_block', description: 'Remove block', type: 'regex_replace',
+          platform: 'ios', file: plistPath, jsonKey: 'someRemovalFlag',
+          regex: r'(<key>Something</key>\n)', replacement: '',
+        );
+
+    test('missing flag key is skipped, not adopted from file, even with --yes', () {
+      const jsonContents = '{\n  "other": "x"\n}\n';
+      File(jsonPath).writeAsStringSync(jsonContents);
+      File(plistPath).writeAsStringSync('<key>Something</key>\nkeep this');
+
+      TransmuteOperationRunner.checkAllInteractive([flagOp()], {'other': 'x'},
+          autoConfirm: true, transmuteJsonPath: jsonPath);
+
+      expect(File(jsonPath).readAsStringSync(), jsonContents,
+          reason: 'flag key must not be added to transmute.json from a regex match');
+    });
+
+    test('missing flag key does not trigger --fatal-prompts', () {
+      const jsonContents = '{\n  "other": "x"\n}\n';
+      File(jsonPath).writeAsStringSync(jsonContents);
+      File(plistPath).writeAsStringSync('<key>Something</key>\nkeep this');
+      FlutterAppTransmuter.fatalPrompts = true;
+
+      // Would call exit(1) if a prompt were shown - reaching the expect proves it skipped.
+      TransmuteOperationRunner.checkAllInteractive([flagOp()], {'other': 'x'}, transmuteJsonPath: jsonPath);
+
+      expect(File(jsonPath).readAsStringSync(), jsonContents);
+    });
+
+    test('missing non-flag key still adopts file value with --yes', () {
+      final gradlePath = '${tempDir.path}/build.gradle';
+      File(jsonPath).writeAsStringSync('{\n  "other": "x"\n}\n');
+      File(gradlePath).writeAsStringSync('applicationId = "com.example.app"');
+
+      final op = TransmuteOperation(
+        id: 'pkg', description: 'Package name', type: 'regex_replace',
+        platform: 'android', file: gradlePath, jsonKey: 'packageName',
+        regex: r'applicationId\s*=\s*"(.*)"', replacement: r'applicationId = "$value"',
+      );
+
+      TransmuteOperationRunner.checkAllInteractive([op], {'other': 'x'},
+          autoConfirm: true, transmuteJsonPath: jsonPath);
+
+      expect(File(jsonPath).readAsStringSync(), contains('"packageName": "com.example.app"'));
+    });
+
+    test('mismatched flag op with --filevalue does not write regex match to transmute.json', () {
+      const jsonContents = '{\n  "someRemovalFlag": "true"\n}\n';
+      File(jsonPath).writeAsStringSync(jsonContents);
+      const plist = '<key>Something</key>\nkeep this';
+      File(plistPath).writeAsStringSync(plist);
+      FlutterAppTransmuter.autoFileValue = true;
+
+      TransmuteOperationRunner.checkAllInteractive([flagOp()], {'someRemovalFlag': 'true'},
+          transmuteJsonPath: jsonPath);
+
+      expect(File(jsonPath).readAsStringSync(), jsonContents,
+          reason: 'flag key must not be overwritten with a regex match');
+      expect(File(plistPath).readAsStringSync(), plist, reason: 'file must not be modified either');
+    });
+
+    test('mismatched flag op with --transmutevalue applies the operation to the file', () {
+      const jsonContents = '{\n  "someRemovalFlag": "true"\n}\n';
+      File(jsonPath).writeAsStringSync(jsonContents);
+      File(plistPath).writeAsStringSync('<key>Something</key>\nkeep this');
+      FlutterAppTransmuter.autoTransmuteValue = true;
+
+      TransmuteOperationRunner.checkAllInteractive([flagOp()], {'someRemovalFlag': 'true'},
+          transmuteJsonPath: jsonPath);
+
+      expect(File(plistPath).readAsStringSync(), 'keep this');
+      expect(File(jsonPath).readAsStringSync(), jsonContents);
+    });
+
+    test('flag op with disabled value is skipped without prompting', () {
+      const jsonContents = '{\n  "someRemovalFlag": "false"\n}\n';
+      File(jsonPath).writeAsStringSync(jsonContents);
+      const plist = '<key>Something</key>\nkeep this';
+      File(plistPath).writeAsStringSync(plist);
+      FlutterAppTransmuter.fatalPrompts = true;
+
+      // Would call exit(1) if a prompt were shown.
+      TransmuteOperationRunner.checkAllInteractive([flagOp()], {'someRemovalFlag': 'false'},
+          transmuteJsonPath: jsonPath);
+
+      expect(File(plistPath).readAsStringSync(), plist);
+      expect(File(jsonPath).readAsStringSync(), jsonContents);
     });
   });
 

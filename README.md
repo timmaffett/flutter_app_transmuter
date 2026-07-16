@@ -556,6 +556,29 @@ Under the hood, transmuter tries `git restore <file>` first, and falls back to `
 | `multiline` | No | Enable multiline regex matching (default: `false`) |
 | `replacement` | For regex/extract | Template string — `$value` is replaced with the JSON value |
 | `always_run` | No | If `true`, runs without requiring `json_key` (implicitly true for `git_restore`) |
+| `value_is_flag` | No | Marks `json_key` as an enable-flag rather than a value (see below). Auto-detected when `replacement` contains no `$value` |
+
+### Flag-gated operations (`value_is_flag`)
+
+Some operations don't substitute a value into the file at all — their `replacement` is fixed text (often empty) and the `json_key` merely turns the operation on or off. A typical example is removing a block from `Info.plist` for some brands:
+
+```yaml
+- id: ios_remove_location_always_usage_description
+  description: "Remove NSLocationAlwaysUsageDescription from Info.plist"
+  type: regex_replace
+  platform: ios
+  file: "ios/Runner/Info.plist"
+  json_key: iosInfoPlistAlwaysLocationRemoval
+  multiline: true
+  regex: '(\n\t\t<key>NSLocationAlwaysUsageDescription</key>\n\t\t<string>[\s\S]*?</string>)'
+  replacement: ""
+```
+
+An operation whose `replacement` contains no `$value` is automatically treated as flag-gated (set `value_is_flag: false` to opt out, or `value_is_flag: true` to force it). Flag-gated operations behave differently:
+
+- The operation runs when the key is any non-empty value except `false`, `no`, `0`, or `off` (case-insensitive); by convention use `"true"`.
+- A missing key means "disabled" — `--verify` reports it as an informational skip and never offers to copy the regex match from the file into `transmute.json` (the match is content the operation removes, not a configuration value).
+- `--check`/`--verify` treat "pattern no longer matches" as MATCH (the removal has been applied) and "pattern still matches" as MISMATCH (not yet applied). On a mismatch, `--verify` offers only (T) apply the operation or (N) no change — the file value is never written to `transmute.json`, including with `--filevalue`.
 
 ### Customizing with `transmute_operations.yaml`
 

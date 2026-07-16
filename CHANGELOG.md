@@ -1,5 +1,17 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.6
+
+* Add `value_is_flag` operation field: marks an operation's `json_key` as an enable-flag rather than
+  a substitution value. Auto-detected when `replacement` contains no `$value`. Flag-gated operations
+  are disabled by a missing key or a `false`/`no`/`0`/`off` value, and `--check`/`--verify` treat
+  "pattern no longer matches" as applied (MATCH).
+* Fix `--verify`: never offer to adopt the regex match from a file as the value of a flag-gated
+  operation's `json_key` (previously a missing flag key could get raw file content — e.g. an entire
+  Info.plist XML block — written into `transmute.json`, silently re-enabling the operation for
+  brands that had it deliberately unset). On a flag-op mismatch, only (T) apply / (N) skip are
+  offered; `--filevalue` skips with a note instead of corrupting `transmute.json`.
+
 ## 2.1.5
 
 * Normalize use of space (instead of optional '=') in README docs for command lines
