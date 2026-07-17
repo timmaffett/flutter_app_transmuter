@@ -24,8 +24,9 @@ def test_ios_and_places_checks():
     places = {'restrictions': {'apiTargets': [
         {'service': 'places-backend.googleapis.com'},
         {'service': 'places.googleapis.com'}]}}
-    assert keys_ops.places_restriction_ok(places)
-    assert not keys_ops.places_restriction_ok({'restrictions': {}})
+    both = ['places-backend.googleapis.com', 'places.googleapis.com']
+    assert keys_ops.api_targets_ok(places, both)
+    assert not keys_ops.api_targets_ok({'restrictions': {}}, both)
 
 
 def test_restriction_bodies():
@@ -145,12 +146,14 @@ def test_restriction_removals_lists_dropped_entries():
             {'sha1Fingerprint': '14ae72aaaa', 'packageName': 'com.new.app'}]},
         'apiTargets': [{'service': 'maps-android-backend.googleapis.com'},
                        {'service': 'geocoding-backend.googleapis.com'}]}}
-    new = keys_ops.android_restrictions_body(['14ae72aaaa'], 'com.new.app')
+    new = keys_ops.android_restrictions_body(['14ae72aaaa'], 'com.new.app',
+                                             ['maps-android-backend.googleapis.com'])
     removed = keys_ops.restriction_removals(key, new)
     assert removed == ['Android com.old.app (cert 14ae72aaaa...)',
                        'API target geocoding-backend.googleapis.com']
     # nothing removed when the new body is a superset
-    same = keys_ops.android_restrictions_body(['14ae72aaaa'], 'com.new.app')
+    same = keys_ops.android_restrictions_body(['14ae72aaaa'], 'com.new.app',
+                                              ['maps-android-backend.googleapis.com'])
     key2 = {'restrictions': same}
     assert keys_ops.restriction_removals(key2, same) == []
 
@@ -158,7 +161,8 @@ def test_restriction_removals_lists_dropped_entries():
 def test_restriction_removals_ios_bundles():
     key = {'restrictions': {'iosKeyRestrictions': {
         'allowedBundleIds': ['com.old.bundle', 'com.new.bundle']}}}
-    new = keys_ops.ios_restrictions_body('com.new.bundle')
+    new = keys_ops.ios_restrictions_body('com.new.bundle',
+                                         ['maps-ios-backend.googleapis.com'])
     removed = keys_ops.restriction_removals(key, new)
     assert 'iOS bundle id com.old.bundle' in removed
     assert not any('com.new.bundle' in r for r in removed)
