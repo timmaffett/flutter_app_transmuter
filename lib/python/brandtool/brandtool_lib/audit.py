@@ -338,27 +338,35 @@ def audit_brand(services, cfg, brand_dir, publisher=None):
                 ' - release builds get denied by the Maps API until allowed')
 
     try:
-        _audit_key(r, apikeys, project_id, brand_dir, data, 'androidGoogleMapsSDKApiKey',
-                   'Android Maps key',
-                   lambda key: keys_ops.android_restriction_missing(
-                       key, fps_sha1, data['packageName']),
-                   lambda: keys_ops.android_restrictions_body(fps_sha1, data['packageName']),
-                   describe_android)
-        _audit_key(r, apikeys, project_id, brand_dir, data, 'iosGoogleMapsSDKApiKey',
-                   'iOS Maps key',
-                   lambda key: [] if keys_ops.ios_restriction_ok(
-                       key, data['iosBundleIdentifier']) else ['bundle id'],
-                   lambda: keys_ops.ios_restrictions_body(data['iosBundleIdentifier']),
-                   lambda lacking: f'key does not allow bundle id {data["iosBundleIdentifier"]}')
-        # the Places key's API-target requirement is covered by the purpose table
-        _audit_key(r, apikeys, project_id, brand_dir, data, 'serverGooglePlacesAPIKey',
-                   'Places server key',
-                   lambda key: [], keys_ops.places_restrictions_body)
+        for purpose in cfg.get('apiKeyPurposes', []):
+            services_list = purpose.get('services', [])
+            if purpose.get('restriction') == 'android':
+                missing_fn = (lambda key: keys_ops.android_restriction_missing(
+                    key, fps_sha1, data['packageName']))
+                body_fn = (lambda s=services_list: keys_ops.android_restrictions_body(
+                    fps_sha1, data['packageName'], s))
+                describe = describe_android
+            elif purpose.get('restriction') == 'ios':
+                missing_fn = (lambda key: [] if keys_ops.ios_restriction_ok(
+                    key, data['iosBundleIdentifier']) else ['bundle id'])
+                body_fn = (lambda s=services_list: keys_ops.ios_restrictions_body(
+                    data['iosBundleIdentifier'], s))
+                describe = (lambda lacking: f'key does not allow bundle id '
+                                            f'{data["iosBundleIdentifier"]}')
+            else:  # api_only: the API-target requirement covers it
+                missing_fn = lambda key: []
+                body_fn = (lambda s=services_list:
+                           keys_ops.api_only_restrictions_body(s))
+                describe = None
+            _audit_key(r, apikeys, project_id, brand_dir, data, purpose, cfg,
+                       missing_fn, body_fn, describe)
     except Exception as e:
         r.add('API keys', ERROR, str(e)[:160])
 
     # 8. FCM messaging service account + key file
-    _audit_fcm(r, services, brand_dir, data, project_id)
+    _audit_fcm(r, services, brand_dir, data, project_id,
+               server_copy=cfg.get('fcmServerCopy'),
+               customer_id_pattern=cfg.get('customerIdPattern', r'\d+'))
 
     # 9. Play
     if publisher is None:
@@ -633,13 +641,14 @@ def _audit_ios_app_metadata(r, firebase, project_id, brand_dir, data, ios_app):
               'record exists and ASC credentials are recorded)')
 
 
-def _netpark_admin_urls(brand_name):
-    """netPark server admin URLs for a brand, derived from the location id(s) in
-    the brand dir name; a placeholder URL when no ids are present."""
-    ids = re.findall(r'\d+', brand_name)
+def customer_urls(brand_name, url_template, customer_id_pattern=r'\d+'):
+    """Server admin URLs for a brand: the customer id(s) extracted from the
+    brand dir name substituted into the configured url_template; a placeholder
+    URL when no ids are present."""
+    ids = re.findall(customer_id_pattern, brand_name)
     if not ids:
-        return ['https://np1.netpark.us/netPark/<locationId>/']
-    return [f'https://np1.netpark.us/netPark/{i}/' for i in ids]
+        return [url_template.replace('{customerId}', '<customerId>')]
+    return [url_template.replace('{customerId}', i) for i in ids]
 
 
 def _red(text):
@@ -653,24 +662,25 @@ def _val(text):
     return paint(text, 'value')
 
 
-def places_server_update_notice(brand_dir, new_key, print_fn=print):
-    """Red banner after the Places key changes: the netPark server keeps its own
-    copy of this key, and an admin must paste the new one into the location's
-    settings page or server-side Places lookups break on the next key rotation."""
+def server_copy_notice(server_copy, brand_dir, new_key,
+                       customer_id_pattern=r'\d+', print_fn=print):
+    """Red banner after a server-copied key changes: some server keeps its own
+    copy of this key (per the purpose's server_copy config), and an admin must
+    paste the new one into its settings page or server-side use breaks on the
+    next key rotation."""
     from .report import paint
     brand = os.path.basename(os.path.normpath(brand_dir))
+    note = server_copy.get('note', 'a server also uses this key')
     print_fn(_red('*' * 70))
-    print_fn(_red('*** ACTION REQUIRED: the netPark SERVER also uses the Places key '
-                  '- it MUST be updated ***'))
-    print_fn(_red('Log in to the server admin for this location and paste the NEW '
-                  'key (shown below):'))
-    for url in _netpark_admin_urls(brand):
-        print_fn(_red(f'  {url}  -> Maintenance -> App/Website Settings -> General '
-                      "-> 'Loyalty App Google Places API Key'"))
+    print_fn(_red(f'*** ACTION REQUIRED: {note} - it MUST be updated ***'))
+    print_fn(_red('Log in to the server admin and paste the NEW key (shown below):'))
+    for url in customer_urls(brand, server_copy['url_template'],
+                             customer_id_pattern):
+        print_fn(_red(f'  {url}  -> {server_copy["settings_path"]}'))
     print_fn(_red('Until updated, the server keeps using the OLD key - it still '
                   'works, so do NOT delete it.'))
     print_fn(_red('*' * 70))
-    print_fn('NEW Places key (copy/paste): ' + paint(new_key, 'green'))
+    print_fn('NEW key (copy/paste): ' + paint(new_key, 'green'))
 
 
 # Consistent option colors for the FCM key fix: MINT is the caution path
@@ -699,25 +709,25 @@ def _read_json_block(input_fn, print_fn):
 
 
 def fcm_key_interactive_fix(services, brand_dir, project_id, data, email,
-                            input_fn=input, print_fn=print):
+                            input_fn=input, print_fn=print, server_copy=None,
+                            customer_id_pattern=r'\d+'):
     """Resolve a missing FCM key file, interactively.
 
-    [M]int a NEW key: the netPark server keeps pushing with the OLD key until an
-    admin uploads the new JSON (Maintenance -> App/Website Settings -> Push
-    Notifications -> 'Firebase Cloud Messaging Service Account JSON File'), so
-    minting prints a red ACTION REQUIRED warning plus the JSON to copy/paste.
+    [M]int a NEW key: when a server_copy is configured, the server keeps pushing
+    with the OLD key until an admin uploads the new JSON at its settings page,
+    so minting prints a red ACTION REQUIRED warning plus the JSON to copy/paste.
     [P]aste the EXISTING JSON fetched from that same server admin page: saved to
     the brand dir, nothing to upload.
     """
     brand = os.path.basename(os.path.normpath(brand_dir))
-    urls = _netpark_admin_urls(brand)
     print_fn(f'The key belongs to {email}.')
-    print_fn('The netPark server admin page holding the CURRENT key for this brand:')
     from .report import paint
-    for url in urls:
-        print_fn('  ' + paint(url, 'cyan') + '  -> Maintenance -> App/Website Settings '
-                 '-> Push Notifications -> "Firebase Cloud Messaging Service Account '
-                 'JSON File"')
+    if server_copy:
+        print_fn('The server admin page holding the CURRENT key for this brand:')
+        for url in customer_urls(brand, server_copy['url_template'],
+                                 customer_id_pattern):
+            print_fn('  ' + paint(url, 'cyan')
+                     + f'  -> {server_copy["settings_path"]}')
     while True:
         choice = input_fn(_mint_txt('[M]int a NEW key') + ' '
                           + _red('(server admin must then be updated!)') + ' / '
@@ -737,12 +747,18 @@ def fcm_key_interactive_fix(services, brand_dir, project_id, data, email,
             with open(os.path.join(brand_dir, filename)) as f:
                 content = f.read()
             print_fn(_red('*' * 70))
-            print_fn(_red('*** ACTION REQUIRED: a NEW key was minted - the netPark '
+            print_fn(_red('*** ACTION REQUIRED: a NEW key was minted - the push '
                           'server MUST be updated ***'))
-            print_fn(_red('Paste the JSON below into the server admin page shown '
-                          'above ("Firebase Cloud Messaging Service Account JSON '
-                          'File"). Until then the server pushes with the OLD key '
-                          '(which keeps working - do NOT revoke it).'))
+            if server_copy:
+                print_fn(_red('Paste the JSON below into the server admin page '
+                              f'shown above ({server_copy["settings_path"]}). '
+                              'Until then the server pushes with the OLD key '
+                              '(which keeps working - do NOT revoke it).'))
+            else:
+                print_fn(_red('Paste the JSON below wherever your push server '
+                              'stores its FCM service-account key. Until then it '
+                              'pushes with the OLD key (which keeps working - do '
+                              'NOT revoke it).'))
             print_fn(_red('*' * 70))
             print_fn(content)
             print_fn(f'(also saved to {os.path.join(brand_dir, filename)})')
@@ -793,7 +809,8 @@ def fcm_key_interactive_fix(services, brand_dir, project_id, data, email,
         print_fn('  Enter M, P, or C.')
 
 
-def _audit_fcm(r, services, brand_dir, data, project_id):
+def _audit_fcm(r, services, brand_dir, data, project_id, server_copy=None,
+               customer_id_pattern=r'\d+'):
     """FCM push service account: transmute.json's fcmServiceAccount is the recorded
     truth. Older brands used custom-named SAs (not the standard
     firebase-messaging-admin), so when unrecorded we infer: the key file's
@@ -870,18 +887,24 @@ def _audit_fcm(r, services, brand_dir, data, project_id):
         r.add('FCM admin key file', OK, _val(keyfile))
     elif effective:
         def fix_key(email=effective):
-            fcm_key_interactive_fix(services, brand_dir, project_id, data, email)
-        from .report import paint
-        brand = os.path.basename(os.path.normpath(brand_dir))
-        admin_urls = ', '.join(paint(u, 'cyan') for u in _netpark_admin_urls(brand))
-        r.add('FCM admin key file', ISSUE,
-              'messagingServiceAccountKeyFile missing - interactive fix: '
-              + _mint_txt(f'mint a NEW key for {effective}') + ' '
-              + _red('(the netPark server admin must then be updated!)') + ' OR '
-              + _paste_txt('paste the EXISTING JSON from the server admin page')
-              + f' ({admin_urls} -> Maintenance -> App/Website Settings -> Push '
-                "Notifications -> 'Firebase Cloud Messaging Service Account JSON File')",
-              fix=fix_key, console_url=_netpark_admin_urls(brand)[0])
+            fcm_key_interactive_fix(services, brand_dir, project_id, data, email,
+                                    server_copy=server_copy,
+                                    customer_id_pattern=customer_id_pattern)
+        detail = ('messagingServiceAccountKeyFile missing - interactive fix: '
+                  + _mint_txt(f'mint a NEW key for {effective}') + ' '
+                  + _red('(the push server admin must then be updated!)') + ' OR '
+                  + _paste_txt('paste the EXISTING JSON from the server admin page'))
+        console_url = None
+        if server_copy:
+            from .report import paint
+            brand = os.path.basename(os.path.normpath(brand_dir))
+            urls = customer_urls(brand, server_copy['url_template'],
+                                 customer_id_pattern)
+            admin_urls = ', '.join(paint(u, 'cyan') for u in urls)
+            detail += f' ({admin_urls} -> {server_copy["settings_path"]})'
+            console_url = urls[0]
+        r.add('FCM admin key file', ISSUE, detail,
+              fix=fix_key, console_url=console_url)
     else:
         r.add('FCM admin key file', ISSUE,
               'messagingServiceAccountKeyFile missing (run create-keys)')
@@ -1120,36 +1143,39 @@ def _audit_apns_key_files(r, brand_dir, data):
               'appleAPNPushKey/' + hint, fix=fix_claim, console_url=cm_url)
 
 
-def _audit_key(r, apikeys, project_id, brand_dir, data, field, label,
+def _audit_key(r, apikeys, project_id, brand_dir, data, purpose, cfg,
                missing_fn, body_fn, describe_fn=None, input_fn=None):
     from .report import paint
-    purpose = keys_ops.KEY_PURPOSES[field]
-    display_name = keys_ops.key_display_name(field, data, brand_dir)
+    field = purpose['field']
+    label = purpose.get('label', field)
+    tokens = purpose.get('match_tokens', [])
+    id_pattern = cfg.get('customerIdPattern', r'\d+')
+    display_name = keys_ops.key_display_name(purpose, data, brand_dir, id_pattern)
     wanted = data.get(field, '')
     snippet = wanted[:12] + '...' + wanted[-4:] if len(wanted) > 20 else wanted
     # color everything that varies run-to-run / brand-to-brand
     proj = paint(project_id, 'cyan')
     snip = paint(snippet, 'yellow')
     disp = paint(f'"{display_name}"', 'green')
+    server_copy = purpose.get('server_copy')
     server_note = ''
-    if field == 'serverGooglePlacesAPIKey':
-        urls = ', '.join(paint(u, 'cyan') for u in
-                         _netpark_admin_urls(os.path.basename(os.path.normpath(brand_dir))))
-        server_note = (f'. NOTE: the netPark server holds its own copy of this key - '
-                       f'after any change an admin must paste the new key at {urls} '
-                       f"-> Maintenance -> App/Website Settings -> General -> "
-                       f"'Loyalty App Google Places API Key'")
+    if server_copy:
+        urls = ', '.join(paint(u, 'cyan') for u in customer_urls(
+            os.path.basename(os.path.normpath(brand_dir)),
+            server_copy['url_template'], id_pattern))
+        server_note = (f'. NOTE: {server_copy.get("note", "a server holds its own "
+                       "copy of this key")} - after any change an admin must paste '
+                       f'the new key at {urls} -> {server_copy["settings_path"]}')
 
     def fix_provision():
         # Offer any existing keys that look like they serve this purpose (matched
         # by display-name tokens); the user decides reuse-vs-new. Either way the
         # key ends up with the correct app restriction AND API target(s).
         body = body_fn()
-        candidates = keys_ops.find_keys_by_tokens(apikeys, project_id,
-                                                  purpose['tokens'])
+        candidates = keys_ops.find_keys_by_tokens(apikeys, project_id, tokens)
         chosen = None
         if candidates:
-            tokens_txt = '"+"'.join(purpose['tokens'])
+            tokens_txt = '"+"'.join(tokens)
             print(f'    Existing key(s) in {project_id} whose display name matches '
                   f'this purpose (contains "{tokens_txt}"):')
             for i, k in enumerate(candidates, 1):
@@ -1193,8 +1219,8 @@ def _audit_key(r, apikeys, project_id, brand_dir, data, field, label,
                   'lives in, so already-shipped')
             print('    builds are unaffected; the NEW key takes effect on the next '
                   'build from this brand dir.')
-        if field == 'serverGooglePlacesAPIKey':
-            places_server_update_notice(brand_dir, new_string)
+        if server_copy:
+            server_copy_notice(server_copy, brand_dir, new_string, id_pattern)
 
     if not wanted:
         r.add(label, ISSUE,
@@ -1220,7 +1246,8 @@ def _audit_key(r, apikeys, project_id, brand_dir, data, field, label,
         problems.append(describe_fn(lacking) if describe_fn
                         else 'not allowed: ' + ', '.join(str(x) for x in lacking))
     have_targets = keys_ops.api_targets(key)
-    missing_targets = [s for s in purpose['services'] if s not in have_targets]
+    missing_targets = [s for s in purpose.get('services', [])
+                       if s not in have_targets]
     if missing_targets:
         current = (', '.join(paint(s, 'yellow') for s in sorted(have_targets))
                    if have_targets else paint('ALL APIs (no API restriction)', 'yellow'))

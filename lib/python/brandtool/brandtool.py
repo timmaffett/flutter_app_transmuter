@@ -694,25 +694,30 @@ def ensure_keys(services, cfg, brand_dir):
     fps_sha1 = [h for h, t in cfgmod.brand_fingerprints(data, cfg) if t == 'SHA_1']
     changed = False
 
-    specs = [
-        ('androidGoogleMapsSDKApiKey',
-         keys_ops.android_restrictions_body(fps_sha1, data['packageName'])),
-        ('iosGoogleMapsSDKApiKey',
-         keys_ops.ios_restrictions_body(data['iosBundleIdentifier'])),
-        ('serverGooglePlacesAPIKey', keys_ops.places_restrictions_body()),
-    ]
-    for field, restrictions in specs:
-        display_name = keys_ops.key_display_name(field, data, brand_dir)
+    id_pattern = cfg.get('customerIdPattern', r'\d+')
+    for purpose in cfg.get('apiKeyPurposes', []):
+        field = purpose['field']
+        services_list = purpose.get('services', [])
+        if purpose.get('restriction') == 'android':
+            restrictions = keys_ops.android_restrictions_body(
+                fps_sha1, data['packageName'], services_list)
+        elif purpose.get('restriction') == 'ios':
+            restrictions = keys_ops.ios_restrictions_body(
+                data['iosBundleIdentifier'], services_list)
+        else:
+            restrictions = keys_ops.api_only_restrictions_body(services_list)
+        display_name = keys_ops.key_display_name(purpose, data, brand_dir, id_pattern)
         if data.get(field) and keys_ops.find_key_by_string(apikeys, project_id, data[field]):
             print(f'{field}: key already exists in {project_id}')
             continue
         old_string = data.get(field, '')
         data[field], action = keys_ops.ensure_key(
             apikeys, project_id, display_name, restrictions,
-            tokens=keys_ops.KEY_PURPOSES[field]['tokens'])
+            tokens=purpose.get('match_tokens', []))
         print(f'{field}: {"matching key adopted (restrictions corrected)" if action == "reused" else f"created new key {display_name!r}"}')
-        if field == 'serverGooglePlacesAPIKey' and data[field] != old_string:
-            audit_mod.places_server_update_notice(brand_dir, data[field])
+        if purpose.get('server_copy') and data[field] != old_string:
+            audit_mod.server_copy_notice(purpose['server_copy'], brand_dir,
+                                         data[field], id_pattern)
         changed = True
 
     keyfile = data.get('messagingServiceAccountKeyFile', '')

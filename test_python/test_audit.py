@@ -40,8 +40,35 @@ def make_brand(tmp_path, project_id='demo-proj', app_id='1:1:android:aaa',
     return str(d)
 
 
+SERVER_COPY = {'note': 'the netPark server uses this key',
+               'url_template': 'https://np1.netpark.us/netPark/{customerId}/',
+               'settings_path': "Maintenance -> App/Website Settings -> General "
+                                "-> 'Loyalty App Google Places API Key'"}
+PURPOSES = [
+    {'field': 'androidGoogleMapsSDKApiKey', 'label': 'Android Maps key',
+     'name': 'Android Loyalty App Google Maps SDK API Key',
+     'restriction': 'android',
+     'services': ['maps-android-backend.googleapis.com'],
+     'match_tokens': ['android', 'maps']},
+    {'field': 'iosGoogleMapsSDKApiKey', 'label': 'iOS Maps key',
+     'name': 'iOS Loyalty App Google Maps SDK API Key',
+     'restriction': 'ios',
+     'services': ['maps-ios-backend.googleapis.com'],
+     'match_tokens': ['ios', 'maps']},
+    {'field': 'serverGooglePlacesAPIKey', 'label': 'Places server key',
+     'name': 'Loyalty App Google Places API Key for netPark Server {customerIds}',
+     'restriction': 'api_only',
+     'services': ['places-backend.googleapis.com', 'places.googleapis.com'],
+     'match_tokens': ['places'], 'name_overflow_strip': 'Loyalty App ',
+     'server_copy': SERVER_COPY},
+]
 CFG = {'billingAccountId': 'BILL-1', 'requiredApis': ['firebase.googleapis.com'],
-       'debugSha1': '14:AE:72', 'releaseSha1': '22:66:DB', 'releaseSha256': '16:52:87'}
+       'debugSha1': '14:AE:72', 'releaseSha1': '22:66:DB', 'releaseSha256': '16:52:87',
+       'apiKeyPurposes': PURPOSES, 'customerIdPattern': r'\d+',
+       'fcmServerCopy': {'url_template': 'https://np1.netpark.us/netPark/{customerId}/',
+                         'settings_path': "Maintenance -> App/Website Settings -> Push "
+                                          "Notifications -> 'Firebase Cloud Messaging "
+                                          "Service Account JSON File'"}}
 
 
 def healthy_services():
@@ -351,14 +378,13 @@ def test_fcm_key_file_account_mismatch_reported(tmp_path):
     assert 'other@demo-proj' in mismatch.detail
 
 
-def test_netpark_admin_urls_from_brand_name():
-    assert audit._netpark_admin_urls('mke_smartpark_1495') == \
-        ['https://np1.netpark.us/netPark/1495/']
-    assert audit._netpark_admin_urls('fine_335_1535_2185_2190') == [
+def test_customer_urls_from_brand_name():
+    tpl = 'https://np1.netpark.us/netPark/{customerId}/'
+    assert audit.customer_urls('mke_smartpark_1495', tpl) ==         ['https://np1.netpark.us/netPark/1495/']
+    assert audit.customer_urls('fine_335_1535_2185_2190', tpl) == [
         'https://np1.netpark.us/netPark/335/', 'https://np1.netpark.us/netPark/1535/',
         'https://np1.netpark.us/netPark/2185/', 'https://np1.netpark.us/netPark/2190/']
-    assert audit._netpark_admin_urls('netpark_demo_Loyalty') == \
-        ['https://np1.netpark.us/netPark/<locationId>/']
+    assert audit.customer_urls('netpark_demo_Loyalty', tpl) ==         ['https://np1.netpark.us/netPark/<customerId>/']
 
 
 def test_fcm_key_fix_paste_existing_json(tmp_path):
@@ -456,7 +482,8 @@ def test_fcm_key_fix_mint_prints_json_and_server_warning(tmp_path):
     out = []
     audit.fcm_key_interactive_fix(
         services, d, 'demo-proj', data, data['fcmServiceAccount'],
-        input_fn=lambda _='': next(answers), print_fn=out.append)
+        input_fn=lambda _='': next(answers), print_fn=out.append,
+        server_copy=CFG['fcmServerCopy'])
     text = '\n'.join(str(ln) for ln in out)
     assert 'ACTION REQUIRED' in text
     assert 'np1.netpark.us' in text
@@ -583,12 +610,12 @@ def test_key_fix_can_create_new_even_when_candidates_exist(tmp_path, monkeypatch
         assert json.load(f)['serverGooglePlacesAPIKey'] == 'AIza-brand-new'
 
 
-def test_places_server_update_notice_contents():
+def test_server_copy_notice_contents():
     lines = []
-    audit.places_server_update_notice('branded_loyalty/ftmyers_2195',
-                                      'AIza-brand-new-key', print_fn=lines.append)
+    audit.server_copy_notice(SERVER_COPY, 'branded_loyalty/ftmyers_2195',
+                             'AIza-brand-new-key', print_fn=lines.append)
     text = '\n'.join(lines)
-    assert 'ACTION REQUIRED' in text and 'netPark SERVER' in text
+    assert 'ACTION REQUIRED' in text and 'netPark server' in text
     assert 'https://np1.netpark.us/netPark/2195/' in text
     assert "Maintenance -> App/Website Settings -> General" in text
     assert "'Loyalty App Google Places API Key'" in text
