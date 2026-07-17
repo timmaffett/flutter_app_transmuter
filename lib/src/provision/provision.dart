@@ -118,7 +118,7 @@ Future<int> runProvision(List<String> args,
     return args.isEmpty ? 64 : 0;
   }
   if (args.first == 'init') {
-    return runProvisionInit();
+    return runProvisionInit(Directory.current.path);
   }
   final python = await findPythonAsync(r);
   if (python == null) {
@@ -147,8 +147,8 @@ Future<int> runProvision(List<String> args,
 
 /// `provision init`: write the commented starter config (pure Dart - works
 /// before Python is even installed). Refuses to overwrite.
-int runProvisionInit() {
-  final f = File('transmute_provisioning.yaml');
+int runProvisionInit(String projectDir) {
+  final f = File(path.join(projectDir, 'transmute_provisioning.yaml'));
   if (f.existsSync()) {
     stderr.writeln(
         'transmute_provisioning.yaml already exists - not overwriting.');

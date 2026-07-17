@@ -15,16 +15,18 @@
 import 'dart:io';
 
 import 'package:flutter_app_transmuter/src/provision/provision.dart';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 void main() {
-  test('init writes the starter yaml and refuses to overwrite', () async {
+  test('init writes the starter yaml and refuses to overwrite', () {
     final tmp = Directory.systemTemp.createTempSync('prov_init');
-    final prev = Directory.current;
-    Directory.current = tmp;
     try {
-      expect(await runProvision(['init']), 0);
-      final f = File('transmute_provisioning.yaml');
+      // NOTE: runProvisionInit takes the directory explicitly - mutating
+      // Directory.current in a test races other concurrently-running suites
+      // (cwd is process-global in the Dart VM).
+      expect(runProvisionInit(tmp.path), 0);
+      final f = File(path.join(tmp.path, 'transmute_provisioning.yaml'));
       expect(f.existsSync(), isTrue);
       final text = f.readAsStringSync();
       expect(text, contains('api_keys:'));
@@ -32,9 +34,8 @@ void main() {
       expect(text, contains('required_apis:'));
       expect(text, contains('FILL_ME'));
       // second run must not clobber
-      expect(await runProvision(['init']), 1);
+      expect(runProvisionInit(tmp.path), 1);
     } finally {
-      Directory.current = prev;
       tmp.deleteSync(recursive: true);
     }
   });

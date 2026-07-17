@@ -89,6 +89,41 @@ dart run flutter_app_transmuter:main --transmute
 
 ---
 
+## ☁️ Brand Provisioning (`transmute provision`)
+
+Beyond rebranding files, the tool can create and audit each brand's cloud
+resources - Google Cloud project, Firebase apps, restricted API keys, Play
+checks, and the Apple/App Store Connect side - via a bundled provisioning
+engine (written in Python, shipped inside this package).
+
+```bash
+# one-time per project: write a commented starter config, then fill it in
+transmute provision init          # -> transmute_provisioning.yaml
+
+# audit one brand / all brands (loops interactively until clean)
+transmute provision audit brands/my_brand
+transmute provision audit
+
+# other verbs
+transmute provision create <brand_dir>       # project + apps + keys end to end
+transmute provision add-asc-key <brand_dir>  # record an App Store Connect Team Key
+transmute provision check-agreements         # which Apple teams need agreements signed
+transmute provision check-personal-ios-dev-certs   # certificate-expiry sweep
+```
+
+Requirements (for the provision verbs only - everything else works without):
+
+* Python 3.10+ on PATH
+* `pip install google-api-python-client google-auth requests PyJWT cryptography pyyaml`
+* Google auth via Application Default Credentials: `gcloud auth application-default login`
+
+`transmute_provisioning.yaml` declares what YOUR project needs: the Google APIs
+to enable, each API key's purpose (restriction type, allowed services, display
+name - with `{customerIds}` substitution from brand dir names), signing-cert
+fingerprints, Apple App ID capabilities, and optional "a server keeps a copy of
+this key" notices with per-customer admin URLs. Delete the sections you don't
+use; the audit only checks what you declare.
+
 ## 🚀 Quick Start
 
 1. Create a `transmute.json` in your Flutter project root:
