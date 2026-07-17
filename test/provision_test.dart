@@ -82,7 +82,21 @@ void main() {
     expect(call.last, isNotEmpty); // TRANSMUTER_PROJECT_ROOT set to cwd
   });
 
-  test('bare provision prints usage and exits 64', () async {
-    expect(await runProvision([], runner: FakeRunner({})), 64);
+  test('bare provision without python falls back to short usage, nonzero',
+      () async {
+    expect(await runProvision([], runner: FakeRunner({})), isNot(0));
+  });
+
+  test('bare provision with python delegates to the engine usage guide',
+      () async {
+    final runner = FakeRunner({
+      'python --version': ProcRes(0, 'Python 3.12.4', ''),
+      'python -c $depProbeSnippet': ProcRes(0, '', ''),
+    });
+    expect(
+        await runProvision([], runner: runner, packageRootOverride: '/pkg'), 0);
+    final call = runner.interactiveCalls.single;
+    expect(call[1], endsWith('brandtool.py'));
+    expect(call.length, 3); // exe, engine, env marker - no extra args
   });
 }

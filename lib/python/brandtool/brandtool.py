@@ -937,7 +937,6 @@ def usage_guide():
 {h('transmute provision - create and audit brand Google/Apple cloud resources')}
 
   Usage:   transmute provision <command> [brand_dir ...] [options]
-           
   Config:  transmute_provisioning.yaml in the project root (transmute provision init)
   Auth:    ADC by default - run "gcloud auth application-default login" once.
            Per-command flag help: transmute provision <command> --help

@@ -107,21 +107,28 @@ Future<String> _engineScript(String? packageRootOverride) async {
   return File.fromUri(uri).path;
 }
 
+void _shortUsage(IOSink sink) {
+  sink.writeln('usage: transmute provision <verb> [args...]');
+  sink.writeln('verbs: ${provisionVerbs.join(', ')}');
+  sink.writeln('Configure a project with: transmute provision init '
+      '(writes transmute_provisioning.yaml)');
+}
+
 Future<int> runProvision(List<String> args,
     {ProcessRunner? runner, String? packageRootOverride}) async {
   final r = runner ?? ProcessRunner();
-  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
-    stdout.writeln('usage: transmute provision <verb> [args...]');
-    stdout.writeln('verbs: ${provisionVerbs.join(', ')}');
-    stdout.writeln('Configure a project with: transmute provision init '
-        '(writes transmute_provisioning.yaml)');
-    return args.isEmpty ? 64 : 0;
-  }
-  if (args.first == 'init') {
+  // Bare/--help invocations are passed through to the engine, which prints the
+  // full colored usage guide (commands, config sources, typical processes) -
+  // same experience as the engine run directly. The short usage below is only
+  // the no-Python fallback.
+  if (args.isNotEmpty && args.first == 'init') {
     return runProvisionInit(Directory.current.path);
   }
   final python = await findPythonAsync(r);
   if (python == null) {
+    if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+      _shortUsage(stdout);
+    }
     stderr.writeln('provision: Python 3 not found on PATH.');
     stderr.writeln('Install Python 3.10+ (https://www.python.org/downloads/) '
         'and re-run. The rest of transmute works without it.');
