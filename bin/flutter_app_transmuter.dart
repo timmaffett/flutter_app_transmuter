@@ -23,6 +23,7 @@ import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 import 'package:flutter_app_transmuter/src/transmute/transmute_operations.dart';
 import 'package:flutter_app_transmuter/src/transmute/default_transmute_operations.dart';
 import 'package:flutter_app_transmuter/src/transmute/update_check.dart';
+import 'package:flutter_app_transmuter/src/provision/provision.dart';
 
 enum Options {
   transmute('transmute'),
@@ -67,6 +68,12 @@ bool debugScripts = false;
 String rootDir = './bin';
 
 void main(List<String> args) async {
+  // `transmute provision <verb> ...` - brand cloud-provisioning family,
+  // handled before (and completely independent of) the flag parser below.
+  if (args.isNotEmpty && args.first == 'provision') {
+    exitCode = await runProvision(args.sublist(1));
+    return;
+  }
   final parser = ArgParser()
     ..addFlag(
       Options.status.name,
