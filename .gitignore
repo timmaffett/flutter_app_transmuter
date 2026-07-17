@@ -84,3 +84,6 @@ CLAUDE.md
 docs/superpowers/*
 resumeclaude.txt
 docs/*
+
+__pycache__/
+.pytest_cache/

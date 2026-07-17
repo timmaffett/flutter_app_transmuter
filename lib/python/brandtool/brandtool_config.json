@@ -1,0 +1,30 @@
+{
+  "billingAccountId": "012F40-4F3915-86E03D",
+  "automationServiceAccount": "brand-automation-engine@automation-master-486919.iam.gserviceaccount.com",
+  "quotaProject": "automation-master-486919",
+  "netparkAdminGrantee": "netpark.testing@gmail.com",
+  "parentResource": "",
+  "debugSha1": "14:AE:72:C0:28:EC:7D:97:18:1D:2B:7E:E1:20:FD:6E:09:B0:DD:33",
+  "releaseSha1": "22:66:DB:3C:06:76:57:02:C9:E7:57:10:2F:14:75:7E:F8:C0:A3:F2",
+  "releaseSha256": "16:52:87:42:72:1B:0D:06:CA:D8:4E:07:06:A6:45:4C:FA:12:87:8B:82:CD:26:B8:81:23:72:F5:50:32:BE:5D",
+  "requiredApis": [
+    "firebase.googleapis.com",
+    "apikeys.googleapis.com",
+    "iam.googleapis.com",
+    "fcm.googleapis.com",
+    "maps-android-backend.googleapis.com",
+    "maps-ios-backend.googleapis.com",
+    "places-backend.googleapis.com",
+    "places.googleapis.com"
+  ],
+  "iosRequiredCapabilities": [
+    "PUSH_NOTIFICATIONS",
+    "APPLE_ID_AUTH",
+    "ASSOCIATED_DOMAINS",
+    "WALLET"
+  ],
+  "play": {
+    "developerAccountName": "netPark",
+    "credentialsFile": "play_credentials.json"
+  }
+}
