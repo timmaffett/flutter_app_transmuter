@@ -1110,6 +1110,55 @@ operations:
   });
 
   // -----------------------------------------------------------
+  // executeGitRestore
+  // -----------------------------------------------------------
+  group('executeGitRestore', () {
+    late Directory tempDir;
+
+    void git(List<String> args) {
+      final result = Process.runSync('git', args, workingDirectory: tempDir.path);
+      if (result.exitCode != 0) {
+        throw StateError('git ${args.join(' ')} failed: ${result.stderr}');
+      }
+    }
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('transmute_git_test_');
+      FlutterAppTransmuter.executingDryRun = false;
+      FlutterAppTransmuter.verboseDebug = 0;
+      git(['init']);
+      git(['config', 'user.email', 'test@test.local']);
+      git(['config', 'user.name', 'Test']);
+      File('${tempDir.path}/file.txt').writeAsStringSync('committed content');
+      git(['add', 'file.txt']);
+      git(['commit', '-m', 'baseline']);
+      File('${tempDir.path}/file.txt').writeAsStringSync('modified content');
+    });
+
+    tearDown(() {
+      FlutterAppTransmuter.executingDryRun = false;
+      tempDir.deleteSync(recursive: true);
+    });
+
+    TransmuteOperation restoreOp() => TransmuteOperation(
+          id: 'restore_file', description: 'Restore file', type: 'git_restore',
+          platform: 'both', file: 'file.txt', jsonKey: '',
+        );
+
+    test('restores the file to git HEAD', () {
+      TransmuteOperationRunner.executeGitRestore(restoreOp(), workingDirectory: tempDir.path);
+      expect(File('${tempDir.path}/file.txt').readAsStringSync(), 'committed content');
+    });
+
+    test('does NOT restore the file in dry run mode', () {
+      FlutterAppTransmuter.executingDryRun = true;
+      TransmuteOperationRunner.executeGitRestore(restoreOp(), workingDirectory: tempDir.path);
+      expect(File('${tempDir.path}/file.txt').readAsStringSync(), 'modified content',
+          reason: '--dryrun must never modify files, including via git restore');
+    });
+  });
+
+  // -----------------------------------------------------------
   // Dry run mode
   // -----------------------------------------------------------
   group('dry run mode', () {

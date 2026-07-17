@@ -77,6 +77,31 @@ void main() {
   });
 
   // -----------------------------------------------------------
+  // resolveUpdatePromptChoice (B/P/N/Q prompt handling)
+  // -----------------------------------------------------------
+  group('resolveUpdatePromptChoice', () {
+    test('recognizes b, p, and q in both modes', () {
+      for (final forSwitch in [true, false]) {
+        expect(BrandFileOperations.resolveUpdatePromptChoice('b', forSwitch: forSwitch), 'b');
+        expect(BrandFileOperations.resolveUpdatePromptChoice('P', forSwitch: forSwitch), 'p');
+        expect(BrandFileOperations.resolveUpdatePromptChoice(' q ', forSwitch: forSwitch), 'q');
+      }
+    });
+
+    test('switch mode has no N option - n, empty, and junk all mean quit', () {
+      expect(BrandFileOperations.resolveUpdatePromptChoice('n', forSwitch: true), 'q');
+      expect(BrandFileOperations.resolveUpdatePromptChoice('', forSwitch: true), 'q');
+      expect(BrandFileOperations.resolveUpdatePromptChoice('x', forSwitch: true), 'q');
+    });
+
+    test('update mode defaults to skip - n, empty, and junk all mean skip', () {
+      expect(BrandFileOperations.resolveUpdatePromptChoice('n', forSwitch: false), 'n');
+      expect(BrandFileOperations.resolveUpdatePromptChoice('', forSwitch: false), 'n');
+      expect(BrandFileOperations.resolveUpdatePromptChoice('x', forSwitch: false), 'n');
+    });
+  });
+
+  // -----------------------------------------------------------
   // brand_source_directory path normalization
   // -----------------------------------------------------------
   group('brand_source_directory path normalization', () {

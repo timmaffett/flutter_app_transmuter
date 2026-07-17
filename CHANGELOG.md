@@ -1,5 +1,23 @@
 # Changelog for flutter_app_transmuter
 
+## 2.1.7
+
+* Fix `--dryrun` not being honored by `git_restore` operations: `--transmute --dryrun` actually ran
+  `git restore` and overwrote the working file. Dry run now prints what would be restored instead.
+* Brand/project file conflict prompts now offer (Q) quit, which stops the tool immediately.
+  During `--switch` the prompt is (B/P/Q) with **no N/skip option** — a "skipped" file would be
+  silently overwritten by step 2's brand copy, so the choices are take brand (B), keep project (P),
+  or abort the switch (Q, the default). Plain `--update` keeps N (skip is honest there) and adds Q.
+* Add `--check_pubdev` command: queries pub.dev for the latest published version and prints the
+  update command if a newer one is available.
+* Regular commands now check pub.dev for updates automatically in the background (at most once
+  every 24 hours, cached; silent and zero-delay when offline) and print a notice after the run
+  when a newer version is available.
+* Document updating the tool (re-running `dart pub global activate` is the update) in `--help`
+  output and the README installation section.
+* README: document that multi-line operation regexes must use `\s*` or `\r?\n` instead of a bare
+  `\n` (on Windows, `git restore` writes CRLF, silently breaking hardcoded-`\n` patterns).
+
 ## 2.1.6
 
 * Add `value_is_flag` operation field: marks an operation's `json_key` as an enable-flag rather than

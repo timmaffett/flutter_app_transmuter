@@ -22,6 +22,7 @@ import 'package:flutter_app_transmuter/src/transmute/constants.dart';
 import 'package:flutter_app_transmuter/src/transmute/file_utils.dart';
 import 'package:flutter_app_transmuter/src/transmute/transmute_operations.dart';
 import 'package:flutter_app_transmuter/src/transmute/default_transmute_operations.dart';
+import 'package:flutter_app_transmuter/src/transmute/update_check.dart';
 
 enum Options {
   transmute('transmute'),
@@ -53,6 +54,7 @@ enum Options {
   force('force'),
   showDefaultYaml('showdefaultyaml'),
   writeDefaultYaml('writedefaultyaml'),
+  checkPubDev('check_pubdev'),
   version('version');
 
   const Options(this.name);
@@ -232,6 +234,12 @@ void main(List<String> args) async {
           'Prints help on how to use the command. The same as --${Options.help.name}.',
     )
     ..addFlag(
+      Options.checkPubDev.name,
+      defaultsTo: false,
+      negatable: false,
+      help: 'Check pub.dev for a newer version of the tool and exit.',
+    )
+    ..addFlag(
       Options.version.name,
       defaultsTo: false,
       negatable: false,
@@ -303,6 +311,11 @@ void main(List<String> args) async {
     return;
   }
 
+  if (parsedArgs[Options.checkPubDev.name] == true) {
+    await UpdateCheck.forcedCheck();
+    return;
+  }
+
   if (parsedArgs[Options.usage.name] == true ||
       parsedArgs[Options.help.name] == true) {
     print(parser.usage);
@@ -311,6 +324,12 @@ void main(List<String> args) async {
     print('  +flutterfire   Run flutterfire configure after switch');
     print('  +build         Run platform build (apk/ipa) after switch');
     print('  -stepname      Exclude a post-switch step (e.g. -clean, -pub_get)');
+    print('');
+    print('Updating the tool:');
+    print('  ${UpdateCheck.updateCommand}     Install/update to the latest pub.dev release');
+    print('  (re-running activate is the update; add a version number to pin one, e.g.');
+    print('  "${UpdateCheck.updateCommand} 2.1.6". Use --check_pubdev to see if a newer');
+    print('  version is available.)');
     return;
   }
 
@@ -389,6 +408,10 @@ void main(List<String> args) async {
     print(parser.usage);
     return;
   }
+
+  // Start the (24h-cached) pub.dev update check in the background while the
+  // operation runs; the result is reported after the operation completes.
+  final Future<String?> updateNotice = UpdateCheck.maybeCheckForUpdate();
 
   // Print brand banner at the very start of any operation
   final transmuteFile = File(Constants.transmuteDefintionFile);
@@ -493,6 +516,17 @@ void main(List<String> args) async {
       push: parsedArgs[Options.push.name] == true,
       force: parsedArgs[Options.force.name] == true,
     );
+  }
+
+  // Report a newer pub.dev version if the background check found one.
+  try {
+    final notice = await updateNotice.timeout(UpdateCheck.networkTimeout);
+    if (notice != null) {
+      print('');
+      print(notice);
+    }
+  } catch (_) {
+    // Never let the update check fail or delay the command.
   }
 }
 

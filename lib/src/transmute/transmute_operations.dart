@@ -179,16 +179,20 @@ class TransmuteOperationRunner {
     }
   }
 
-  static void executeGitRestore(TransmuteOperation op) {
+  static void executeGitRestore(TransmuteOperation op, {String? workingDirectory}) {
     final filePath = op.file;
     if (filePath == null) {
       print('ERROR: git_restore operation ${op.id} has no file path'.brightRed);
       return;
     }
+    if (FlutterAppTransmuter.executingDryRun) {
+      print('  ..dry run - would restore $filePath to git HEAD baseline'.brightYellow);
+      return;
+    }
     // Try `git restore` (git >= 2.23), fall back to `git checkout --`
-    var result = Process.runSync('git', ['restore', filePath]);
+    var result = Process.runSync('git', ['restore', filePath], workingDirectory: workingDirectory);
     if (result.exitCode != 0) {
-      result = Process.runSync('git', ['checkout', '--', filePath]);
+      result = Process.runSync('git', ['checkout', '--', filePath], workingDirectory: workingDirectory);
     }
     if (result.exitCode != 0) {
       print('  ERROR: git restore failed for $filePath: ${result.stderr}'.brightRed);

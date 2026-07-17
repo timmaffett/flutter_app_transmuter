@@ -54,6 +54,14 @@ dart pub global activate --source path /path/to/flutter_app_transmuter
 dart pub global deactivate flutter_app_transmuter
 ```
 
+**Updating:** there is no separate update command — re-running
+`dart pub global activate flutter_app_transmuter` always fetches and installs the
+latest published version, overwriting whatever is currently activated. Run
+`transmute --check_pubdev` to see whether a newer version is available (regular
+commands also check automatically once a day and print a notice). Note that
+pub.dev can take a minute or two after a publish before the new version is
+available to activate.
+
 > If `dart pub global activate` warns that the pub-cache `bin` directory isn't on
 > your `PATH`, add the directory it names (typically `~/.pub-cache/bin` on
 > macOS/Linux, or `%LOCALAPPDATA%\Pub\Cache\bin` on Windows) to your `PATH`.
@@ -301,8 +309,10 @@ For each changed file, you're prompted whether to update the brand copy. If the 
   WARNING: Brand file is NEWER than project file!
     Brand:   2025-01-15 14:30:00
     Project: 2025-01-10 09:15:00
-  (B) use brand file -> project, (P) use project file -> brand, or (N) skip:
+  (B) use brand file -> project, (P) use project file -> brand, (N) skip, or (Q) quit (default N):
 ```
+
+**Q** quits the tool immediately: files already answered are kept, everything else is left untouched.
 
 After file updates, a transmute check runs to verify values and optionally update `transmute.json`.
 
@@ -331,7 +341,7 @@ transmute --switch ../brands/newbrand --yes
 
 The switch performs these steps in order:
 
-1. **Step 1: Update current brand** — Saves any project changes back to the current brand directory (same as `--update`)
+1. **Step 1: Update current brand** — Saves any project changes back to the current brand directory (same as `--update`, with one difference: the file prompt offers **(B/P/Q)** with **no N/skip option**. A "skipped" project file would be silently overwritten by step 2's brand copy anyway, so the honest choices are B — take the brand version, P — keep your project version, or Q — quit and abort the switch before anything else runs. **Q is the default**, so a stray Enter aborts safely.)
 2. **Step 2: Copy new brand** — Copies files from the new brand directory into the project (same as `--copy`)
 3. **Step 3: Post-switch operations** — Runs the post-switch pipeline (transmute, rebuild icons, clean, etc.)
 
@@ -416,6 +426,27 @@ If the file already exists, you'll be prompted before overwriting. This is the r
 
 ---
 
+### `--check_pubdev`
+
+Check pub.dev for a newer published version of the tool.
+
+```bash
+transmute --check_pubdev
+```
+
+Prints the current version, the latest version on pub.dev, and the update command if a newer version is available:
+
+```
+flutter_app_transmuter 2.1.6
+Checking pub.dev for the latest published version...
+A newer version of flutter_app_transmuter is available: 2.2.0 (current: 2.1.6)
+Update with: dart pub global activate flutter_app_transmuter
+```
+
+Regular commands also perform this check automatically in the background (at most once every 24 hours, silently skipped when offline) and print the same notice at the end of the run when an update is available.
+
+---
+
 ### Modifier Options
 
 These options modify the behavior of the primary operations:
@@ -432,16 +463,18 @@ These options modify the behavior of the primary operations:
 | `--dryrun` | Preview mode — no files are written to disk |
 | `--debug` | Enable debug output (equivalent to `--verbose 1`) |
 | `--verbose <N>` | Set verbose debug level (0=off, 1+=debug detail) |
+| `--version` | Print the tool version and exit |
+| `--check_pubdev` | Check pub.dev for a newer version of the tool and exit |
 | `--help` / `--usage` | Show command line help |
 
 #### Auto-Answer Prompt Options
 
 The auto-answer options give you fine-grained control over how interactive prompts are handled:
 
-**File conflict prompts** (B/P/N) — shown when brand and project files differ during `--update`:
+**File conflict prompts** (B/P/N/Q; B/P/Q during `--switch`) — shown when brand and project files differ:
 - `--brandfile` — Always use the brand file (answer B)
 - `--projectfile` — Always use the project file (answer P)
-- `--skip` — Always skip (answer N)
+- `--skip` — Always skip (answer N; during `--switch` a note warns that step 2 will overwrite the skipped project file)
 
 **Transmute mismatch prompts** (T/F/N) — shown when file values don't match transmute.json during `--verify`:
 - `--transmutevalue` — Always use the transmute.json value (answer T)
@@ -552,7 +585,7 @@ Under the hood, transmuter tries `git restore <file>` first, and falls back to `
 | `optional` | No | If `true`, skip silently when file doesn't exist (default: `false`) |
 | `json_key` | No for `git_restore`, Yes otherwise | The `transmute.json` key that provides the replacement value |
 | `fallback_key` | No | Fallback `transmute.json` key if `json_key` is missing |
-| `regex` | For regex/extract | Regular expression pattern (use single quotes in YAML) |
+| `regex` | For regex/extract | Regular expression pattern (use single quotes in YAML). To match across lines, use `\s*` or `\r?\n` — never a bare `\n`: on Windows, files written by `git restore` (e.g. a `git_restore` baseline) have CRLF endings, and a hardcoded `\n` will silently never match |
 | `multiline` | No | Enable multiline regex matching (default: `false`) |
 | `replacement` | For regex/extract | Template string — `$value` is replaced with the JSON value |
 | `always_run` | No | If `true`, runs without requiring `json_key` (implicitly true for `git_restore`) |

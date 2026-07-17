@@ -126,10 +126,12 @@ class FlutterAppTransmuter {
       return;
     }
 
-    // Update current brand files from project (same as --update)
+    // Update current brand files from project (same as --update, but with no
+    // N/skip option: step 2's brand copy would silently overwrite any skipped
+    // project file, so the prompt offers B/P/Q instead)
     print('Step 1: Updating current brand ($currentBrandDir) from project...'.brightGreen);
     print('');
-    BrandFileOperations.updateBrandFiles(currentBrandDir, autoConfirm: autoConfirm);
+    BrandFileOperations.updateBrandFiles(currentBrandDir, autoConfirm: autoConfirm, forSwitch: true);
 
     // Copy new brand files into the project (same as --copy)
     print('');

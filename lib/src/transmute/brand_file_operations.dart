@@ -168,7 +168,21 @@ class BrandFileOperations {
     print('Brand file diff complete: $identical identical, $different different, $missing missing.'.brightGreen);
   }
 
-  static void updateBrandFiles(String brandDir, {bool autoConfirm = false}) {
+  /// Maps a raw brand/project file prompt response to a canonical choice.
+  ///
+  /// In `--switch` mode (forSwitch: true) there is no N/skip option: a skipped
+  /// sync would be silently overwritten by the incoming brand copy in step 2,
+  /// so "skip" is a lie there. Only b/p/q are accepted and anything else
+  /// (including Enter) safely means Q (quit the switch).
+  /// In plain `--update` mode, skip is genuinely "no change": b/p/q are
+  /// accepted and anything else defaults to N (skip).
+  static String resolveUpdatePromptChoice(String response, {required bool forSwitch}) {
+    final normalized = response.trim().toLowerCase();
+    if (normalized == 'b' || normalized == 'p' || normalized == 'q') return normalized;
+    return forSwitch ? 'q' : 'n';
+  }
+
+  static void updateBrandFiles(String brandDir, {bool autoConfirm = false, bool forSwitch = false}) {
     final mappings = _loadMappings();
     if (mappings.isEmpty) {
       return;
@@ -243,6 +257,9 @@ class BrandFileOperations {
           } else if (FlutterAppTransmuter.autoSkip) {
             response = 'n';
             print('  Auto-skipping (--skip)'.brightYellow);
+            if (forSwitch) {
+              print('  NOTE: the incoming brand copy (step 2) will overwrite this project file.'.brightYellow);
+            }
           } else if (FlutterAppTransmuter.fatalPrompts) {
             print('  ERROR: Interactive prompt encountered with --fatal-prompts'.brightRed);
             response = 'n';
@@ -251,8 +268,22 @@ class BrandFileOperations {
             final bLetter = brandIsNewer ? 'B'.brightGreen.bold : 'B';
             final pLetter = projectIsNewer ? 'P'.brightGreen.bold : 'P';
             // No outer color on this prompt: its ANSI reset would terminate the bLetter/pLetter coloring.
-            stdout.write('  ($bLetter) use brand file -> project, ($pLetter) use project file -> brand, or (N) skip (default N): ');
-            response = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+            // During --switch there is no N/skip: a "skipped" project file would be silently
+            // overwritten by the incoming brand copy in step 2, so the honest choices are
+            // B (take brand version), P (keep project version), or Q (quit the switch).
+            if (forSwitch) {
+              stdout.write('  ($bLetter) use brand file -> project, ($pLetter) use project file -> brand, or (Q) quit switch (default Q): ');
+            } else {
+              stdout.write('  ($bLetter) use brand file -> project, ($pLetter) use project file -> brand, (N) skip, or (Q) quit (default N): ');
+            }
+            final raw = stdin.readLineSync() ?? '';
+            response = resolveUpdatePromptChoice(raw, forSwitch: forSwitch);
+          }
+          if (response == 'q') {
+            print('');
+            print('Quitting${forSwitch ? ' - brand switch aborted (no further steps will run)' : ''}. '
+                'Files already answered above have been updated; this file and the rest are untouched.'.brightYellow);
+            exit(1);
           }
           if (response == 'b') {
             FileUtils.copyFile(brandPath, projectPath);
