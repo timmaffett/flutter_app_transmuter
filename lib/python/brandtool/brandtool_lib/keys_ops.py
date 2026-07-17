@@ -4,48 +4,36 @@ import re
 
 from .firebase_ops import wait_for_operation
 
-# Legacy Places API + Places API (New). NOTE: 'places-new-backend.googleapis.com'
-# is NOT a real service (SERVICE_CONFIG_NOT_FOUND) - the new API is places.googleapis.com.
-PLACES_SERVICES = ['places-backend.googleapis.com', 'places.googleapis.com']
-MAPS_ANDROID_SERVICE = 'maps-android-backend.googleapis.com'
-MAPS_IOS_SERVICE = 'maps-ios-backend.googleapis.com'
-
-# Per-transmute-field key purpose: the display name for keys the tool creates,
-# the API service(s) the key is locked to, and the display-name tokens that
-# recognize an existing key serving this purpose (matches both manually created
-# legacy names and old tool names; Firebase's auto-created keys contain no
-# 'maps'/'places' token, so they are never picked up). No brand prefix in the
-# names: the project already identifies the brand, and displayName is capped at
-# MAX_DISPLAY_NAME_LEN characters.
-KEY_PURPOSES = {
-    'androidGoogleMapsSDKApiKey': {
-        'name': 'Android Loyalty App Google Maps SDK API Key',
-        'tokens': ('android', 'maps'), 'services': [MAPS_ANDROID_SERVICE]},
-    'iosGoogleMapsSDKApiKey': {
-        'name': 'iOS Loyalty App Google Maps SDK API Key',
-        'tokens': ('ios', 'maps'), 'services': [MAPS_IOS_SERVICE]},
-    'serverGooglePlacesAPIKey': {
-        'name': 'Loyalty App Google Places API Key for netPark Server',
-        'tokens': ('places',), 'services': PLACES_SERVICES},
-}
+# Key purposes come from transmute_provisioning.yaml's api_keys: list. Each
+# purpose dict: field (transmute.json entry), name (displayName template,
+# may contain {customerIds}/{customerId}), label (audit report label),
+# restriction (android | ios | api_only), services (API targets),
+# match_tokens (adopt-by-name), optional name_overflow_strip + server_copy.
 
 MAX_DISPLAY_NAME_LEN = 63   # API Keys v2 displayName hard limit
 
 
-def key_display_name(field, data, brand_dir=None):
-    name = KEY_PURPOSES[field]['name']
-    if field == 'serverGooglePlacesAPIKey':
-        # suffix the netPark location number(s) so the key is traceable to the
-        # server admin page(s) (https://np1.netpark.us/netPark/<locationId>/)
+def key_display_name(purpose, data, brand_dir=None, customer_id_pattern=r'\d+'):
+    """Render the purpose's displayName template. Customer ids (netPark:
+    "location ids") come from the brand dir name; if the rendered name blows
+    the 63-char cap, the configured name_overflow_strip prefix is dropped."""
+    name = purpose['name']
+    if '{customerIds}' in name or '{customerId}' in name:
         source = os.path.basename(os.path.normpath(
             brand_dir or data.get('brand_source_directory') or ''))
-        ids = re.findall(r'\d+', source)
-        if ids:
-            name += ' ' + ' '.join(ids)
-            if len(name) > MAX_DISPLAY_NAME_LEN:
-                # many-location brands (fine has 4 ids): drop the prefix to fit
-                name = name.replace('Loyalty App ', '', 1)
+        ids = re.findall(customer_id_pattern, source)
+        name = (name.replace('{customerIds}', ' '.join(ids))
+                    .replace('{customerId}', ids[0] if ids else '')).strip()
+        if len(name) > MAX_DISPLAY_NAME_LEN and purpose.get('name_overflow_strip'):
+            name = name.replace(purpose['name_overflow_strip'], '', 1)
     return name
+
+
+def purpose_for_field(cfg, field):
+    for p in cfg.get('apiKeyPurposes', []):
+        if p['field'] == field:
+            return p
+    return None
 
 
 def list_keys(apikeys, project_id):
@@ -94,23 +82,19 @@ def api_targets_ok(key, services):
     return set(services) <= api_targets(key)
 
 
-def places_restriction_ok(key):
-    return api_targets_ok(key, PLACES_SERVICES)
-
-
-def android_restrictions_body(fingerprints_sha1, package_name):
+def android_restrictions_body(fingerprints_sha1, package_name, services):
     return {'androidKeyRestrictions': {'allowedApplications': [
         {'sha1Fingerprint': fp, 'packageName': package_name} for fp in fingerprints_sha1]},
-        'apiTargets': [{'service': MAPS_ANDROID_SERVICE}]}
+        'apiTargets': [{'service': s} for s in services]}
 
 
-def ios_restrictions_body(bundle_id):
+def ios_restrictions_body(bundle_id, services):
     return {'iosKeyRestrictions': {'allowedBundleIds': [bundle_id]},
-            'apiTargets': [{'service': MAPS_IOS_SERVICE}]}
+            'apiTargets': [{'service': s} for s in services]}
 
 
-def places_restrictions_body():
-    return {'apiTargets': [{'service': s} for s in PLACES_SERVICES]}
+def api_only_restrictions_body(services):
+    return {'apiTargets': [{'service': s} for s in services]}
 
 
 def update_restrictions(apikeys, key, restrictions):

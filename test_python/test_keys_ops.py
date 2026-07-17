@@ -29,17 +29,16 @@ def test_ios_and_places_checks():
 
 
 def test_restriction_bodies():
-    body = keys_ops.android_restrictions_body(['aa', 'bb'], 'com.a')
+    body = keys_ops.android_restrictions_body(['aa', 'bb'], 'com.a', ['svc-a'])
     assert body['androidKeyRestrictions']['allowedApplications'] == [
         {'sha1Fingerprint': 'aa', 'packageName': 'com.a'},
         {'sha1Fingerprint': 'bb', 'packageName': 'com.a'}]
-    assert body['apiTargets'] == [{'service': 'maps-android-backend.googleapis.com'}]
-    ios = keys_ops.ios_restrictions_body('com.a')
+    assert body['apiTargets'] == [{'service': 'svc-a'}]
+    ios = keys_ops.ios_restrictions_body('com.a', ['svc-i'])
     assert ios['iosKeyRestrictions'] == {'allowedBundleIds': ['com.a']}
-    assert ios['apiTargets'] == [{'service': 'maps-ios-backend.googleapis.com'}]
-    assert keys_ops.places_restrictions_body() == {'apiTargets': [
-        {'service': 'places-backend.googleapis.com'},
-        {'service': 'places.googleapis.com'}]}
+    assert ios['apiTargets'] == [{'service': 'svc-i'}]
+    assert keys_ops.api_only_restrictions_body(['a', 'b']) == {'apiTargets': [
+        {'service': 'a'}, {'service': 'b'}]}
 
 
 def test_api_targets_ok():
@@ -51,35 +50,38 @@ def test_api_targets_ok():
                                        ['maps-android-backend.googleapis.com'])
 
 
-def test_key_display_names():
-    # 'Loyalty App' in every name, but no brand prefix: the project already
-    # identifies the brand, and Google caps displayName at 63 chars
-    data = {}
-    assert keys_ops.key_display_name('androidGoogleMapsSDKApiKey', data) == \
-        'Android Loyalty App Google Maps SDK API Key'
-    assert keys_ops.key_display_name('iosGoogleMapsSDKApiKey', data) == \
-        'iOS Loyalty App Google Maps SDK API Key'
-    # no location digits available -> no suffix
-    assert keys_ops.key_display_name('serverGooglePlacesAPIKey', data) == \
-        'Loyalty App Google Places API Key for netPark Server'
+ANDROID_P = {'field': 'androidGoogleMapsSDKApiKey',
+             'name': 'Android Loyalty App Google Maps SDK API Key',
+             'restriction': 'android',
+             'services': ['maps-android-backend.googleapis.com'],
+             'match_tokens': ['android', 'maps']}
+SERVER_P = {'field': 'serverGooglePlacesAPIKey',
+            'name': 'Loyalty App Google Places API Key for netPark Server {customerIds}',
+            'restriction': 'api_only',
+            'services': ['places-backend.googleapis.com', 'places.googleapis.com'],
+            'match_tokens': ['places'],
+            'name_overflow_strip': 'Loyalty App '}
 
 
-def test_places_key_name_gets_location_ids_and_fits_the_limit():
-    data = {}
-    # from an explicit brand dir
+def test_key_display_name_from_purpose():
+    assert keys_ops.key_display_name(ANDROID_P, {}) ==         'Android Loyalty App Google Maps SDK API Key'
     assert keys_ops.key_display_name(
-        'serverGooglePlacesAPIKey', data, 'branded_loyalty/ftmyers_2195') == \
-        'Loyalty App Google Places API Key for netPark Server 2195'
-    # from brand_source_directory when no brand dir is passed; fine's four
-    # location ids would blow the 63-char cap, so the prefix is dropped there
-    data['brand_source_directory'] = 'branded_loyalty/fine_335_1535_2185_2190'
-    name = keys_ops.key_display_name('serverGooglePlacesAPIKey', data)
+        SERVER_P, {}, 'branded_loyalty/ftmyers_2195') ==         'Loyalty App Google Places API Key for netPark Server 2195'
+    # no ids anywhere -> template placeholder collapses cleanly
+    assert keys_ops.key_display_name(SERVER_P, {}) ==         'Loyalty App Google Places API Key for netPark Server'
+
+
+def test_customer_ids_overflow_strips_configured_prefix():
+    data = {'brand_source_directory': 'branded_loyalty/fine_335_1535_2185_2190'}
+    name = keys_ops.key_display_name(SERVER_P, data)
     assert name == 'Google Places API Key for netPark Server 335 1535 2185 2190'
     assert len(name) <= keys_ops.MAX_DISPLAY_NAME_LEN
-    # the Maps key names never get the suffix
-    assert keys_ops.key_display_name(
-        'androidGoogleMapsSDKApiKey', data, 'branded_loyalty/ftmyers_2195') == \
-        'Android Loyalty App Google Maps SDK API Key'
+
+
+def test_purpose_for_field():
+    cfg = {'apiKeyPurposes': [ANDROID_P, SERVER_P]}
+    assert keys_ops.purpose_for_field(cfg, 'serverGooglePlacesAPIKey') is SERVER_P
+    assert keys_ops.purpose_for_field(cfg, 'nope') is None
 
 
 def test_create_key_rejects_overlong_display_name():
