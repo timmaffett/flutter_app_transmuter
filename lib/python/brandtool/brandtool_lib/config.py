@@ -1,23 +1,79 @@
-"""Shared configuration loading for brandtool (tool config + per-brand transmute.json)."""
+"""Shared configuration loading for the provisioning engine: the project-level
+transmute_provisioning.yaml plus per-brand transmute.json files. The engine runs
+from inside the flutter_app_transmuter pub package, so the target project's
+location comes from the TRANSMUTER_PROJECT_ROOT env var (set by the Dart
+driver) or the current working directory - never from this file's own path."""
 import json
 import os
 import re
 
-LIB_DIR = os.path.dirname(os.path.abspath(__file__))
-BIN_DIR = os.path.dirname(LIB_DIR)
-REPO_ROOT = os.path.dirname(BIN_DIR)
-DEFAULT_CONFIG_PATH = os.path.join(BIN_DIR, 'brandtool_config.json')
-BRANDS_ROOT = os.path.join(REPO_ROOT, 'branded_loyalty')
+import yaml
 
-# Values left over from STARTER_BRAND_DIR templates ("PLACE_..._HERE", "MAKE_..._HERE", "#####").
+
+def compute_project_root():
+    return os.environ.get('TRANSMUTER_PROJECT_ROOT') or os.getcwd()
+
+
+PROJECT_ROOT = compute_project_root()
+REPO_ROOT = PROJECT_ROOT     # legacy name, used throughout the engine
+PROVISIONING_FILE = 'transmute_provisioning.yaml'
+_PROJECT_DEFAULTS = {'brands_root': 'branded_loyalty',
+                     'brand_config': 'transmute.json',
+                     'starter_brand_dir': 'STARTER_BRAND_DIR',
+                     'customer_id_pattern': r'\d+'}
+BRANDS_ROOT = os.path.join(REPO_ROOT, _PROJECT_DEFAULTS['brands_root'])
+
+# Values left over from starter-brand templates ("PLACE_..._HERE", "#####").
 PLACEHOLDER_RE = re.compile(r'_HERE|^#+$')
 
 REQUIRED_TRANSMUTE_FIELDS = ['packageName', 'iosBundleIdentifier', 'appName']
 
 
+def load_provisioning_config(path=None):
+    """Read transmute_provisioning.yaml and return the legacy cfg-dict shape the
+    engine consumes, plus the generalized sections (apiKeyPurposes, server
+    copies, Apple settings). Also points BRANDS_ROOT at the project: section."""
+    global BRANDS_ROOT
+    p = path or os.path.join(PROJECT_ROOT, PROVISIONING_FILE)
+    if not os.path.exists(p):
+        raise SystemExit(
+            f'{PROVISIONING_FILE} not found in {os.path.dirname(p) or PROJECT_ROOT} - '
+            'the provisioning commands are configured per-project. Create one '
+            'with: transmute provision init')
+    with open(p, encoding='utf-8') as f:
+        raw = yaml.safe_load(f) or {}
+    proj = {**_PROJECT_DEFAULTS, **(raw.get('project') or {})}
+    BRANDS_ROOT = os.path.join(PROJECT_ROOT, proj['brands_root'])
+    g = raw.get('google') or {}
+    certs = g.get('signing_certs') or {}
+    play = g.get('play') or {}
+    apple = raw.get('apple') or {}
+    return {
+        'billingAccountId': g.get('billing_account', ''),
+        'quotaProject': g.get('quota_project', ''),
+        'netparkAdminGrantee': g.get('admin_grantee', ''),
+        'automationServiceAccount': g.get('automation_service_account', ''),
+        'requiredApis': g.get('required_apis') or [],
+        'debugSha1': certs.get('debug_sha1', ''),
+        'releaseSha1': certs.get('release_sha1', ''),
+        'releaseSha256': certs.get('release_sha256', ''),
+        'play': ({'credentialsFile': play.get('credentials_file', '')}
+                 if play else {}),
+        'iosRequiredCapabilities': apple.get('required_capabilities') or [],
+        'apiKeyPurposes': raw.get('api_keys') or [],
+        'fcmServerCopy': (raw.get('fcm') or {}).get('server_copy'),
+        'apnsBackupDir': apple.get('apns_backup_dir', 'appleAPNPushKey'),
+        'accessRequestEmailTemplate': apple.get('access_request_email_template'),
+        'organizationName': apple.get('organization_name', 'our team'),
+        'customerIdPattern': proj['customer_id_pattern'],
+        'brandConfigName': proj['brand_config'],
+        'starterBrandDir': proj['starter_brand_dir'],
+    }
+
+
+# Legacy alias so brandtool.py's get_context keeps one call site.
 def load_tool_config(path=None):
-    with open(path or DEFAULT_CONFIG_PATH) as f:
-        return json.load(f)
+    return load_provisioning_config(path)
 
 
 def load_transmute(brand_dir):
