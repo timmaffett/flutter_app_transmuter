@@ -10,10 +10,9 @@ from .report import ERROR, ISSUE, _c, boxed
 
 
 def default_tool_cmd():
-    """The platform's wrapper script (simpler than 'python bin/brandtool.py')."""
-    if os.name == 'nt':
-        return r'bin\brandtool'
-    return './bin/brandtool.sh'
+    """The engine runs inside flutter_app_transmuter; the Dart wrapper is the
+    single entry point on every platform."""
+    return 'transmute provision'
 
 
 FIX = '{tool} audit {brand} --fix'
@@ -79,8 +78,8 @@ ADVICE = {
         'and records it in transmute.json)',
         'or inspect existing keys: ' + CREDENTIALS_URL]},
     'Places server key': {'commands': [FIX, CREATE_KEYS], 'manual': [
-        '(--fix reuses/creates the key and records it; the netPark SERVER also '
-        'uses this key - update it server-side after a change)',
+        '(--fix reuses/creates the key and records it; a server_copy-configured '
+        'SERVER also uses this key - update it server-side after a change)',
         'or inspect existing keys: ' + CREDENTIALS_URL]},
     'Android Maps key restriction': {'commands': [FIX]},
     'iOS Maps key restriction': {'commands': [FIX]},
@@ -97,7 +96,7 @@ ADVICE = {
         'edit transmute.json or replace the key file in the brand dir']},
     'Play Store app': {'manual': [
         'app creation cannot be automated - create the app in Play Console '
-        '(netPark account): https://play.google.com/console',
+        '(your Play developer account): https://play.google.com/console',
         'then follow INSTRUCTIONS_BRAND_SETUP.md "Step 4: Manual Google Play steps" '
         '(declarations, first release AAB)']},
     'Apple account status': {'manual': [
@@ -138,7 +137,7 @@ ADVICE = {
     'APNs key file': {'manual': [
         'generate an APNs auth key in the client developer portal: '
         'https://developer.apple.com/account/resources/authkeys/list',
-        'place the .p8 in the brand dir AND appleAPNPushKey/, then upload it in '
+        'place the .p8 in the brand dir AND the APNs backup dir, then upload it in '
         'Firebase console -> Project settings -> Cloud Messaging']},
 }
 
@@ -174,24 +173,32 @@ def _apple_account_note(brand, brands_root=None):
 def asc_access_request_email(data):
     """Template email asking the client's Apple ACCOUNT HOLDER to enable App Store
     Connect API access (Apple allows only the Account Holder to click Request
-    Access; once granted, netPark's Admin access can generate the API keys).
+    Access; once granted, the organization's Admin access can generate the keys).
+    The organization name and an optional full-template override come from
+    transmute_provisioning.yaml (apple.organization_name /
+    apple.access_request_email_template - placeholders: {holder_name},
+    {holder_email}, {app_name}, {account}, {team}, {organization}).
     Procedure per Apple: developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/
     """
-    holder_name = data.get('appleAccountHolderName') or '[ACCOUNT HOLDER NAME]'
-    holder_email = data.get('appleAccountHolderEmail') or '[ACCOUNT HOLDER EMAIL]'
-    app_name = data.get('appName', '[APP NAME]')
-    account = data.get('AppleDeveloperAccountName', '[APPLE DEVELOPER ACCOUNT]')
-    team = data.get('DEVELOPMENT_TEAM', '[TEAM ID]')
-    return f'''To: {holder_name} <{holder_email}>
+    from . import config as cfgmod
+    fields = {
+        'holder_name': data.get('appleAccountHolderName') or '[ACCOUNT HOLDER NAME]',
+        'holder_email': data.get('appleAccountHolderEmail') or '[ACCOUNT HOLDER EMAIL]',
+        'app_name': data.get('appName', '[APP NAME]'),
+        'account': data.get('AppleDeveloperAccountName', '[APPLE DEVELOPER ACCOUNT]'),
+        'team': data.get('DEVELOPMENT_TEAM', '[TEAM ID]'),
+        'organization': cfgmod.ORGANIZATION_NAME,
+    }
+    template = cfgmod.ACCESS_REQUEST_EMAIL_TEMPLATE or '''To: {holder_name} <{holder_email}>
 Subject: Action needed (2 minutes): enable App Store Connect API access for "{app_name}"
 
 Hello {holder_name},
 
-netPark builds and maintains the "{app_name}" iOS app under your Apple
+{organization} builds and maintains the "{app_name}" iOS app under your Apple
 Developer account "{account}" (Team ID {team}). To automate the app's
 configuration checks and release upkeep, the App Store Connect API needs to
 be enabled for your team. Apple only allows the account's ACCOUNT HOLDER to
-enable it - netPark cannot perform this step for you.
+enable it - {organization} cannot perform this step for you.
 
 What to do (one time only, about 2 minutes):
 
@@ -201,16 +208,17 @@ What to do (one time only, about 2 minutes):
   3. With "App Store Connect API" selected, click "Request Access".
   4. Check the box agreeing to Apple's terms and click Submit.
 
-Once Apple grants access, netPark will generate the required API key using
-our existing team access - you do not need to create or send us anything
+Once Apple grants access, {organization} will generate the required API key
+using our existing team access - you do not need to create or send us anything
 else, and this does not change who controls your account.
 
 Apple's documentation for this step:
 https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/
 
 Thank you,
-netPark Support
+{organization} Support
 '''
+    return template.format(**fields)
 
 
 def render_console_urls(reports, color=False, brands_root=None):

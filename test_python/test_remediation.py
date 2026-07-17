@@ -10,12 +10,9 @@ def test_empty_when_no_issues():
     assert remediation.render_addendum([r]) == ''
 
 
-def test_default_tool_cmd_is_platform_wrapper():
-    tool = remediation.default_tool_cmd()
-    if os.name == 'nt':
-        assert tool == r'bin\brandtool'
-    else:
-        assert tool == './bin/brandtool.sh'
+def test_default_tool_cmd_is_the_transmuter_wrapper():
+    # one entry point on every platform - the Dart wrapper
+    assert remediation.default_tool_cmd() == 'transmute provision'
 
 
 def test_commands_and_manual_advice():

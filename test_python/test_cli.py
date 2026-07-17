@@ -150,7 +150,7 @@ def test_usage_guide_covers_all_commands_and_process():
         assert cmd in guide, cmd
     for expected in ('TYPICAL PROCESS', 'transmute.json', 'AUDIT CLEAN',
                      'INEEDTOSETUPAPPLE' if False else 'GIVE_ME_REQUEST_EMAIL',
-                     'firebaseProjectId', 'INSTRUCTIONS_BRAND_SETUP.md'):
+                     'firebaseProjectId', 'transmute_provisioning.yaml'):
         assert expected in guide, expected
     assert '\x1b[' not in guide  # plain when color disabled
     try:

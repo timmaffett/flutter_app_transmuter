@@ -948,7 +948,7 @@ def _apns_key_ids_in(directory, exclude_basename=None):
 
 
 def _unclaimed_apns_keys(apns_root, brands_root):
-    """Key ids in appleAPNPushKey/ that no brand dir holds a copy of."""
+    """Key ids in the APNs backup dir that no brand dir holds a copy of."""
     if not os.path.isdir(apns_root):
         return []
     claimed = {os.path.basename(p)
@@ -1005,7 +1005,7 @@ def _claim_apns_key(brand_dir, apns_root, kid):
         print(f'    recorded apnsKeyId={kid}; {fname} already in the brand dir.')
     elif os.path.exists(src):
         shutil.copyfile(src, dest)
-        print(f'    recorded apnsKeyId={kid} and claimed {fname} from appleAPNPushKey/ '
+        print(f'    recorded apnsKeyId={kid} and claimed {fname} from {cfgmod.APNS_BACKUP_DIR}/ '
               'into the brand dir.')
     else:
         print(f'    recorded apnsKeyId={kid}, but {fname} is nowhere local - locate '
@@ -1076,7 +1076,7 @@ def _audit_apns_key(r, brand_dir, data):
 
 def _audit_apns_key_files(r, brand_dir, data):
     brands_root = os.path.dirname(os.path.normpath(brand_dir))
-    apns_root = os.path.join(os.path.dirname(brands_root), 'appleAPNPushKey')
+    apns_root = os.path.join(os.path.dirname(brands_root), cfgmod.APNS_BACKUP_DIR)
     dir_keys = _apns_key_ids_in(brand_dir, exclude_basename=data.get('ascApiKeyFile'))
     apns_key_id = data.get('apnsKeyId', '')
     cm_url = cloud_messaging_ios_url(
@@ -1089,20 +1089,20 @@ def _audit_apns_key_files(r, brand_dir, data):
         in_backup = os.path.exists(os.path.join(apns_root, fname))
         if in_dir and in_backup:
             r.add('APNs key file', OK,
-                  f'{_val(fname)} present (backup in appleAPNPushKey/)')
+                  f'{_val(fname)} present (backup in {cfgmod.APNS_BACKUP_DIR}/)')
         elif in_dir:
             r.add('APNs key file', ISSUE,
-                  f'{_val(fname)} present but no backup copy in appleAPNPushKey/',
+                  f'{_val(fname)} present but no backup copy in {cfgmod.APNS_BACKUP_DIR}/',
                   fix=lambda: shutil.copyfile(os.path.join(brand_dir, fname),
                                               os.path.join(apns_root, fname)))
         elif in_backup:
             r.add('APNs key file', ISSUE,
-                  f'{_val(fname)} missing from brand dir (backup exists in appleAPNPushKey/)',
+                  f'{_val(fname)} missing from brand dir (backup exists in {cfgmod.APNS_BACKUP_DIR}/)',
                   fix=lambda: shutil.copyfile(os.path.join(apns_root, fname),
                                               os.path.join(brand_dir, fname)))
         else:
             r.add('APNs key file', ISSUE,
-                  f'{_val(fname)} not found in brand dir or appleAPNPushKey/ - APNs keys cannot '
+                  f'{_val(fname)} not found in brand dir or {cfgmod.APNS_BACKUP_DIR}/ - APNs keys cannot '
                   'be re-downloaded; locate the file, or generate a new key, upload it in '
                   'Firebase Cloud Messaging, and update apnsKeyId',
                   console_url=cm_url)
@@ -1132,7 +1132,7 @@ def _audit_apns_key_files(r, brand_dir, data):
               fix=fix_pick, console_url=cm_url)
     else:
         unclaimed = _unclaimed_apns_keys(apns_root, brands_root)
-        hint = ('; possibly one of the unclaimed keys in appleAPNPushKey/: '
+        hint = (f'; possibly one of the unclaimed keys in {cfgmod.APNS_BACKUP_DIR}/: '
                 + ', '.join(_val(k) for k in unclaimed)) if unclaimed else ''
 
         def fix_claim():
@@ -1140,7 +1140,7 @@ def _audit_apns_key_files(r, brand_dir, data):
         r.add('APNs key file', ISSUE,
               'no APNs AuthKey_*.p8 in brand dir - [F]ix asks for the key id shown on '
               'the Firebase Cloud Messaging page and claims the matching backup from '
-              'appleAPNPushKey/' + hint, fix=fix_claim, console_url=cm_url)
+              f'{cfgmod.APNS_BACKUP_DIR}/' + hint, fix=fix_claim, console_url=cm_url)
 
 
 def _audit_key(r, apikeys, project_id, brand_dir, data, purpose, cfg,

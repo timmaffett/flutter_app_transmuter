@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""brandtool - create and audit netPark loyalty brand Google projects.
+"""provisioning engine for flutter_app_transmuter - create and audit brand
+Google/Apple resources (run via: transmute provision <command>).
 
-See MANUAL_BRAND_TOOLING.md for full documentation and INSTRUCTIONS_BRAND_SETUP.md for the
-new-brand walkthrough. Auth is ADC by default:
+Auth is ADC by default:
     gcloud auth application-default login    (one time)
 """
 import argparse
@@ -387,8 +387,9 @@ def print_asc_key_instructions(data):
     team_txt = f" (team {paint(team, 'value')})" if team else ''
     nav = paint('Users and Access -> Integrations -> App Store Connect API', 'pink')
     tab = paint('"Team Keys"', 'pink')
-    name1 = paint('"netPark brandtool"', 'pink')
-    name2 = paint('"netParkLoyaltyAppBrandTool"', 'pink')
+    org = cfgmod.ORGANIZATION_NAME
+    name1 = paint(f'"{org} provisioning"', 'pink')
+    name2 = paint(f'"{org}BrandProvisioningKey"', 'pink')
     role = paint('"App Manager"', 'darkblue')
     admin_role = paint('"Admin"', 'darkblue')
     sentinel = paint('GIVE_ME_REQUEST_EMAIL', 'command')
@@ -401,7 +402,7 @@ How to create the App Store Connect API Team Key (one time per Apple account):
   2. Go to  {nav},
      and select the {tab} tab.
   3. If the page shows "Request Access": ONLY the client's ACCOUNT HOLDER can
-     grant it (netPark is never the Account Holder - Apple's rule). Type
+     grant it ({org} is never the Account Holder - Apple's rule). Type
      {sentinel} at the prompt below to generate a ready-to-send
      email asking them to enable it (can take days-weeks), and continue
      without Apple credentials in the meantime.
@@ -584,7 +585,7 @@ def cmd_create_project(args):
         print(f'  grants:       serviceAccount:{cfg["automationServiceAccount"]} (editor)')
         admin = cfg.get('netparkAdminGrantee', '')
         print(f'                user:{admin} (owner)' if admin else
-              '                WARNING: netparkAdminGrantee empty - no admin grant')
+              '                WARNING: admin_grantee empty - no admin grant')
         if not args.yes:
             try:
                 proceed = input('Proceed? [y/N] ').strip().lower()
@@ -803,7 +804,7 @@ def cmd_create(args):
               f'{args.brand} after generating a Team Key)')
     print('\nBrand Google setup complete. Next: run '
           f'"{remediation.default_tool_cmd()} audit {args.brand}" to verify, and see '
-          'INSTRUCTIONS_BRAND_SETUP.md for the manual Play Console app creation steps.')
+          'your Play Console for the manual app creation steps.')
 
 
 def cmd_check_agreements(args):
@@ -933,13 +934,13 @@ def usage_guide():
         return paint(text, 'brightred')
 
     return f'''
-{h('brandtool - create and audit netPark loyalty brand Google/Apple resources')}
+{h('transmute provision - create and audit brand Google/Apple cloud resources')}
 
-  Usage:   bin\\brandtool <command> [brand_dir ...] [options]     (Windows)
-           ./bin/brandtool.sh <command> ...                      (macOS/Linux)
-  Details: MANUAL_BRAND_TOOLING.md (reference) and INSTRUCTIONS_BRAND_SETUP.md (new-brand walkthrough)
+  Usage:   transmute provision <command> [brand_dir ...] [options]
+           
+  Config:  transmute_provisioning.yaml in the project root (transmute provision init)
   Auth:    ADC by default - run "gcloud auth application-default login" once.
-           Per-command flag help: bin\\brandtool <command> --help
+           Per-command flag help: transmute provision <command> --help
 
 {h('COMMANDS')}
 
@@ -965,7 +966,7 @@ def usage_guide():
       proposed from transmute.json's firebaseProjectId, else derived from the
       brand directory name; if Google reports the id taken you are prompted
       for another. Grants the automation service account (editor) and the
-      netPark admin (owner), links billing, enables the required APIs,
+      admin grantee (owner), links billing, enables the required APIs,
       initializes Firebase, then writes firebaseProjectId/Number back into
       transmute.json.
 
@@ -1038,23 +1039,23 @@ def usage_guide():
 
 {h('TYPICAL PROCESS - new brand')}
 
-  1. Copy branded_loyalty/STARTER_BRAND_DIR -> branded_loyalty/<brand>, replace
-     the assets, fill the USER fields in transmute.json  (INSTRUCTIONS_BRAND_SETUP.md step 1-2)
-  2. bin\\brandtool {c('create')} branded_loyalty/<brand>
+  1. Copy <brands_root>/STARTER_BRAND_DIR -> <brands_root>/<brand>, replace
+     the assets, fill the USER fields in transmute.json
+  2. transmute provision {c('create')} <brands_root>/<brand>
   3. Manual Google Play: create the app in Play Console + declarations
-     (cannot be automated)                              (INSTRUCTIONS_BRAND_SETUP.md step 4)
+     (cannot be automated)
   4. Apple: {c('add-asc-key')}, then {c('create-apple')} if step 2 skipped it; create the
      ASC app record manually; APNs key into the brand dir + Firebase console
-  5. bin\\brandtool {c('audit')} branded_loyalty/<brand>  - repeat [F]ix until
+  5. transmute provision {c('audit')} <brands_root>/<brand>  - repeat [F]ix until
      {paint('AUDIT CLEAN', 'green')}
 
 {h('TYPICAL PROCESS - maintenance / pre-release')}
 
-  bin\\brandtool {c('audit')} branded_loyalty/<brand> --fix    (interactive fix loop)
-  bin\\brandtool {c('audit')} --noprompt                       (all brands, CI/script gate)
-  bin\\brandtool {c('audit-unique')}                           (cross-brand duplicate scan)
-  bin\\brandtool {c('check-agreements')}                       (weekly Apple agreements sweep)
-  bin\\brandtool {c('check-personal-ios-dev-certs')}                            (Apple cert-expiry sweep + Xcode how-to)
+  transmute provision {c('audit')} <brands_root>/<brand> --fix    (interactive fix loop)
+  transmute provision {c('audit')} --noprompt                       (all brands, CI/script gate)
+  transmute provision {c('audit-unique')}                           (cross-brand duplicate scan)
+  transmute provision {c('check-agreements')}                       (weekly Apple agreements sweep)
+  transmute provision {c('check-personal-ios-dev-certs')}                            (Apple cert-expiry sweep + Xcode how-to)
 '''
 
 

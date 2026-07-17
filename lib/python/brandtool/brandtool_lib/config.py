@@ -23,6 +23,12 @@ _PROJECT_DEFAULTS = {'brands_root': 'branded_loyalty',
                      'customer_id_pattern': r'\d+'}
 BRANDS_ROOT = os.path.join(REPO_ROOT, _PROJECT_DEFAULTS['brands_root'])
 
+# Set from transmute_provisioning.yaml at load; defaults keep the netPark-era
+# conventions so tests exercising individual checks need no config.
+ORGANIZATION_NAME = 'our team'
+APNS_BACKUP_DIR = 'appleAPNPushKey'
+ACCESS_REQUEST_EMAIL_TEMPLATE = None
+
 # Values left over from starter-brand templates ("PLACE_..._HERE", "#####").
 PLACEHOLDER_RE = re.compile(r'_HERE|^#+$')
 
@@ -33,7 +39,8 @@ def load_provisioning_config(path=None):
     """Read transmute_provisioning.yaml and return the legacy cfg-dict shape the
     engine consumes, plus the generalized sections (apiKeyPurposes, server
     copies, Apple settings). Also points BRANDS_ROOT at the project: section."""
-    global BRANDS_ROOT
+    global BRANDS_ROOT, ORGANIZATION_NAME, APNS_BACKUP_DIR
+    global ACCESS_REQUEST_EMAIL_TEMPLATE
     p = path or os.path.join(PROJECT_ROOT, PROVISIONING_FILE)
     if not os.path.exists(p):
         raise SystemExit(
@@ -48,6 +55,9 @@ def load_provisioning_config(path=None):
     certs = g.get('signing_certs') or {}
     play = g.get('play') or {}
     apple = raw.get('apple') or {}
+    ORGANIZATION_NAME = apple.get('organization_name', 'our team')
+    APNS_BACKUP_DIR = apple.get('apns_backup_dir', 'appleAPNPushKey')
+    ACCESS_REQUEST_EMAIL_TEMPLATE = apple.get('access_request_email_template')
     return {
         'billingAccountId': g.get('billing_account', ''),
         'quotaProject': g.get('quota_project', ''),
