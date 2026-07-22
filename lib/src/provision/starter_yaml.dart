@@ -37,6 +37,9 @@ project:
   # A customer id is whatever identifier YOUR server/admin system uses for the
   # brand/customer (netPark calls these "location ids"). Delete this and all
   # {customerId}/{customerIds} usages below if you have no such concept.
+  # '\d+' extracts numeric ids (brand_123, brand_12_34 -> 12, 34). If a single
+  # trailing id can also be TEXT (my_brand_Loyalty -> "Loyalty"), use
+  # '(?<=_)\d+|[^_]+$' - every digit-run after an underscore, else the final segment.
   customer_id_pattern: '\d+'
 
 google:
