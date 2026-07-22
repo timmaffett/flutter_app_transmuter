@@ -246,8 +246,8 @@ def audit_brand(services, cfg, brand_dir, publisher=None):
                 # same Firebase display name as the Android app (appName)
                 app_id = fb.create_ios_app(firebase, project_id, data['appName'],
                                            data['iosBundleIdentifier'],
-                                           team_id=data.get('DEVELOPMENT_TEAM'),
-                                           app_store_id=data.get('appStoreId'))
+                                           team_id=cfgmod.real_value(data, 'DEVELOPMENT_TEAM'),
+                                           app_store_id=cfgmod.real_value(data, 'appStoreId'))
                 fb.download_ios_config(firebase, project_id, app_id, brand_dir)
                 print(f'    created Firebase iOS app {_val(app_id)} (Team ID '
                       f'{_val(data.get("DEVELOPMENT_TEAM") or "(unset)")}, App Store ID '

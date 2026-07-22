@@ -19,7 +19,7 @@ def test_missing_adc_prints_setup_walkthrough(monkeypatch):
     import google.auth
     from google.auth import exceptions
 
-    def no_adc(scopes=None):
+    def no_adc(scopes=None, quota_project_id=None):
         raise exceptions.DefaultCredentialsError('Your default credentials were not found.')
 
     monkeypatch.setattr(google.auth, 'default', no_adc)

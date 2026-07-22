@@ -82,3 +82,28 @@ def test_get_project_number():
     crm = FakeResource(projects=FakeResource(
         get=lambda name: {'name': 'projects/123456789', 'projectId': 'p'}))
     assert fb.get_project_number(crm, 'p') == '123456789'
+
+
+def test_create_ios_app_drops_invalid_team_and_store_ids(capsys):
+    captured = []
+
+    def create(parent, body):
+        captured.append(body)
+        return {'name': 'op/1'}
+
+    svc = FakeResource(
+        projects=FakeResource(iosApps=FakeResource(create=create)),
+        operations=FakeResource(get=lambda name: {'done': True,
+                                                  'response': {'appId': '1:1:ios:x'}}))
+    # placeholder-ish/invalid values must not reach the API (Firebase 400s)
+    fb.create_ios_app(svc, 'p', 'App', 'com.d.ios',
+                      team_id='PLACE_TEAM_ID_HERE:BW25647WCD',
+                      app_store_id='not-digits')
+    assert 'teamId' not in captured[0] and 'appStoreId' not in captured[0]
+    out = capsys.readouterr().out
+    assert 'teamId' in out and 'appStoreId' in out  # skipped-with-note
+    # valid values still pass through
+    fb.create_ios_app(svc, 'p', 'App', 'com.d.ios',
+                      team_id='BW25647WCD', app_store_id='6446444444')
+    assert captured[1]['teamId'] == 'BW25647WCD'
+    assert captured[1]['appStoreId'] == '6446444444'

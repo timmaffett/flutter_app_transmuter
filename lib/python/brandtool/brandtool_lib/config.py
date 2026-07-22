@@ -115,6 +115,14 @@ def save_transmute(brand_dir, data):
         f.write('\n')
 
 
+def real_value(data, key):
+    """The field's value, or '' when absent/empty/still a starter placeholder -
+    use before passing optional transmute values to live APIs (a placeholder
+    teamId, for example, 400s Firebase app creation)."""
+    v = data.get(key) or ''
+    return '' if (not isinstance(v, str) or PLACEHOLDER_RE.search(v)) else v
+
+
 def placeholder_fields(data):
     return sorted(k for k, v in data.items()
                   if isinstance(v, str) and PLACEHOLDER_RE.search(v))

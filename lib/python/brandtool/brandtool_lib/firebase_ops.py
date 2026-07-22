@@ -135,12 +135,20 @@ def create_android_app(firebase, project_id, display_name, package_name):
 
 def create_ios_app(firebase, project_id, display_name, bundle_id,
                    team_id=None, app_store_id=None):
+    import re as _re
     # same 40-char cap as create_android_app so both apps carry the same name
     body = {'displayName': display_name[:40].strip(), 'bundleId': bundle_id}
-    if team_id:
+    # invalid/placeholder values 400 the whole request - skip them with a note
+    if team_id and _re.fullmatch(r'[A-Z0-9]{10}', team_id):
         body['teamId'] = team_id
-    if app_store_id:
-        body['appStoreId'] = app_store_id
+    elif team_id:
+        print(f'  skipping teamId {team_id!r} (not a 10-char Apple Team ID - '
+              'set DEVELOPMENT_TEAM later; audit --fix patches it)')
+    if app_store_id and str(app_store_id).isdigit():
+        body['appStoreId'] = str(app_store_id)
+    elif app_store_id:
+        print(f'  skipping appStoreId {app_store_id!r} (not numeric - audit --fix '
+              'records it once the App Store record exists)')
     op = firebase.projects().iosApps().create(
         parent=f'projects/{project_id}', body=body).execute()
     res = wait_for_operation(firebase, op['name'])

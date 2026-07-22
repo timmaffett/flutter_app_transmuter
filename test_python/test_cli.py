@@ -249,3 +249,31 @@ def test_find_downloaded_p8_prefers_downloads_then_prompts(tmp_path):
     found = brandtool.find_downloaded_p8('ZZZZZZZZZZ', downloads_dir=str(dl),
                                          input_fn=lambda _: next(answers))
     assert found == str(other)
+
+
+def test_required_fields_prompt_offers_dir_derived_suggestions(tmp_path):
+    import json as jsonmod
+    d = tmp_path / 'branded_loyalty' / 'valletconnections_2010'
+    d.mkdir(parents=True)
+    (d / 'transmute.json').write_text(jsonmod.dumps({
+        'packageName': 'MAKE_PACKAGE_NAME_HERE:us.example.app.demo',
+        'iosBundleIdentifier': 'MAKE_PACKAGE_NAME_HERE:us.example.app.demo.ios',
+        'appName': 'MAKEAPP_NAME_HERE:Example Demo'}))
+    prompts = []
+
+    def scripted(prompt=''):
+        prompts.append(prompt)
+        return ''   # accept every suggestion
+
+    data = jsonmod.loads((d / 'transmute.json').read_text())
+    result = brandtool.ensure_required_fields(str(d), data, input_fn=scripted)
+    # suggestions derived from the dir name (digits dropped, capitalized)
+    assert result['packageName'] == 'com.valletconnections.app'
+    assert result['iosBundleIdentifier'] == 'com.valletconnections.app'
+    assert result['appName'] == 'Valletconnections'
+    # prompts show the template's example and the suggestion as the default
+    joined = ' '.join(prompts)
+    assert 'us.example.app.demo' in joined       # example surfaced from placeholder
+    assert '[com.valletconnections.app]' in joined
+    saved = jsonmod.loads((d / 'transmute.json').read_text())
+    assert saved['appName'] == 'Valletconnections'

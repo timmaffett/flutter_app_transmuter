@@ -43,7 +43,10 @@ def build_credentials(creds_file=None, quota_project=None, scopes=None,
         import google.auth
         from google.auth import exceptions as _gexc
         try:
-            creds, _ = google.auth.default(scopes=scopes)
+            # quota_project_id here (not only with_quota_project below) so
+            # google.auth does not print its no-quota-project UserWarning
+            creds, _ = google.auth.default(scopes=scopes,
+                                           quota_project_id=quota_project)
         except _gexc.DefaultCredentialsError:
             raise SystemExit(_adc_setup_walkthrough(admin_hint))
     if quota_project:

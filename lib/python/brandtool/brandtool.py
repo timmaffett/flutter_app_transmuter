@@ -532,15 +532,38 @@ def cmd_add_asc_key(args):
         sys.exit(1)
 
 
-def ensure_required_fields(brand_dir, data, assume_yes=False):
+def _identity_suggestion(field, brand_dir, data):
+    """A sensible default for a missing identity field, derived from the brand
+    directory name: digits (customer ids) dropped, words capitalized for the
+    app name, lowercased+joined for the package/bundle ids. iOS bundle id
+    defaults to the (possibly just-entered) packageName."""
+    base = os.path.basename(os.path.normpath(brand_dir))
+    words = [w for w in re.split(r'[_\-]+', base) if w and not w.isdigit()]
+    slug = ''.join(words).lower()
+    if field == 'appName':
+        return ' '.join(w if w[:1].isupper() else w.capitalize() for w in words)
+    if field == 'iosBundleIdentifier' and cfgmod.real_value(data, 'packageName'):
+        return data['packageName'].replace('_', '-')
+    return f'com.{slug}.app' if slug else ''
+
+
+def _placeholder_example(value):
+    """Starter placeholders look like 'MAKE_..._HERE:example' - surface the example."""
+    if value and '_HERE:' in value:
+        return value.split(':', 1)[1]
+    return ''
+
+
+def ensure_required_fields(brand_dir, data, assume_yes=False, input_fn=input):
     """Prompt for required identity fields that are missing or still placeholders.
 
-    These cannot be inferred (packageName, iosBundleIdentifier, appName) - the user
-    must supply them. Entered values are validated and written back to transmute.json.
+    These cannot be inferred (packageName, iosBundleIdentifier, appName) - the
+    user must supply them. Each prompt shows the starter template's example and
+    offers a suggestion derived from the brand directory name (Enter accepts).
     Non-interactive (--yes) runs abort with an actionable message instead.
     """
     problems = [k for k in cfgmod.REQUIRED_TRANSMUTE_FIELDS
-                if not data.get(k) or cfgmod.PLACEHOLDER_RE.search(data.get(k) or '')]
+                if not cfgmod.real_value(data, k)]
     if not problems:
         return data
     print('\ntransmute.json is missing required values that cannot be inferred:')
@@ -550,11 +573,17 @@ def ensure_required_fields(brand_dir, data, assume_yes=False):
         raise SystemExit('Cannot proceed: edit these fields in transmute.json, '
                          'or run without --yes to be prompted for them.')
     for k in problems:
+        example = _placeholder_example(data.get(k) or '')
+        hint = f' (example: {example})' if example else ''
         while True:
+            suggestion = _identity_suggestion(k, brand_dir, data)
+            accept = f' [{suggestion}]' if suggestion else ''
             try:
-                value = input(f'Enter value for {k}: ').strip()
+                value = input_fn(f'Enter value for {k}{hint}{accept}: ').strip()
             except (EOFError, KeyboardInterrupt):
                 raise SystemExit('\nAborted - transmute.json unchanged.')
+            if not value and suggestion:
+                value = suggestion
             if value and not cfgmod.PLACEHOLDER_RE.search(value):
                 break
             print('  A real (non-placeholder) value is required.')
@@ -663,8 +692,8 @@ def ensure_apps(services, cfg, brand_dir):
         # name comes from iosBundleDisplayName via Info.plist, not from Firebase
         ios_app_id = fb.create_ios_app(firebase, project_id, data['appName'],
                                        data['iosBundleIdentifier'],
-                                       team_id=data.get('DEVELOPMENT_TEAM'),
-                                       app_store_id=data.get('appStoreId'))
+                                       team_id=cfgmod.real_value(data, 'DEVELOPMENT_TEAM'),
+                                       app_store_id=cfgmod.real_value(data, 'appStoreId'))
         if data.get('DEVELOPMENT_TEAM'):
             print(f'  Team ID set to {data["DEVELOPMENT_TEAM"]}')
         if data.get('appStoreId'):

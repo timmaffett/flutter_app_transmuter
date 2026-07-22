@@ -92,3 +92,14 @@ def test_active_brand_dir_and_is_active(tmp_path, monkeypatch):
     assert cfgmod.is_active_brand(r'branded_loyalty\parkngo_440')
     assert cfgmod.is_active_brand('branded_loyalty/PARKNGO_440')
     assert not cfgmod.is_active_brand('branded_loyalty/mke_smartpark_1495')
+
+
+def test_real_value_filters_placeholders():
+    from brandtool_lib import config as cfgmod
+    data = {'DEVELOPMENT_TEAM': 'PLACE_TEAM_ID_HERE:BW25647WCD',
+            'appStoreId': '#####', 'packageName': 'com.real.app', 'empty': ''}
+    assert cfgmod.real_value(data, 'DEVELOPMENT_TEAM') == ''
+    assert cfgmod.real_value(data, 'appStoreId') == ''
+    assert cfgmod.real_value(data, 'packageName') == 'com.real.app'
+    assert cfgmod.real_value(data, 'empty') == ''
+    assert cfgmod.real_value(data, 'absent') == ''
