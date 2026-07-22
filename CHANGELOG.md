@@ -14,6 +14,10 @@
   override: apple.agreements_email_template in transmute_provisioning.yaml.
 * provision: a missing/placeholder firebaseProjectNumber is now a fixable audit issue
   (recorded from google-services.json); mismatches are flagged for manual resolution.
+* provision: friendlier new-brand create flow - identity prompts show the starter
+  template's example and offer Enter-to-accept suggestions derived from the brand
+  directory name; placeholder DEVELOPMENT_TEAM/appStoreId values no longer 400 the
+  Firebase iOS app creation; the google-auth quota-project UserWarning is gone.
 * All organization-specific internal names removed from shipped sources (internal
   config key netparkAdminGrantee -> adminGrantee; yaml key was already admin_grantee).
 

@@ -534,11 +534,12 @@ def cmd_add_asc_key(args):
 
 def _identity_suggestion(field, brand_dir, data):
     """A sensible default for a missing identity field, derived from the brand
-    directory name: digits (customer ids) dropped, words capitalized for the
-    app name, lowercased+joined for the package/bundle ids. iOS bundle id
-    defaults to the (possibly just-entered) packageName."""
+    directory name (customer-id numbers kept - some orgs name projects with
+    them): words capitalized for the app name, lowercased+joined for the
+    package/bundle ids. iOS bundle id defaults to the (possibly just-entered)
+    packageName."""
     base = os.path.basename(os.path.normpath(brand_dir))
-    words = [w for w in re.split(r'[_\-]+', base) if w and not w.isdigit()]
+    words = [w for w in re.split(r'[_\-]+', base) if w]
     slug = ''.join(words).lower()
     if field == 'appName':
         return ' '.join(w if w[:1].isupper() else w.capitalize() for w in words)

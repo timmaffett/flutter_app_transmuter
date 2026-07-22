@@ -267,13 +267,13 @@ def test_required_fields_prompt_offers_dir_derived_suggestions(tmp_path):
 
     data = jsonmod.loads((d / 'transmute.json').read_text())
     result = brandtool.ensure_required_fields(str(d), data, input_fn=scripted)
-    # suggestions derived from the dir name (digits dropped, capitalized)
-    assert result['packageName'] == 'com.valletconnections.app'
-    assert result['iosBundleIdentifier'] == 'com.valletconnections.app'
-    assert result['appName'] == 'Valletconnections'
+    # suggestions derived from the dir name (customer id kept, capitalized)
+    assert result['packageName'] == 'com.valletconnections2010.app'
+    assert result['iosBundleIdentifier'] == 'com.valletconnections2010.app'
+    assert result['appName'] == 'Valletconnections 2010'
     # prompts show the template's example and the suggestion as the default
     joined = ' '.join(prompts)
     assert 'us.example.app.demo' in joined       # example surfaced from placeholder
-    assert '[com.valletconnections.app]' in joined
+    assert '[com.valletconnections2010.app]' in joined
     saved = jsonmod.loads((d / 'transmute.json').read_text())
-    assert saved['appName'] == 'Valletconnections'
+    assert saved['appName'] == 'Valletconnections 2010'
