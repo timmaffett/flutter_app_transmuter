@@ -1,5 +1,19 @@
 # Changelog for flutter_app_transmuter
 
+## 2.2.0
+
+* New `transmute provision <verb>` command family: brand cloud provisioning and auditing
+  (Google Cloud / Firebase / Play / App Store Connect) driven by a bundled Python engine.
+  Verbs: `init`, `audit`, `audit-unique`, `create-project`, `create-apps`, `create-keys`,
+  `create`, `create-apple`, `add-asc-key`, `check-agreements`, `check-personal-ios-dev-certs`.
+* Configured per-project by a new `transmute_provisioning.yaml` (written by
+  `transmute provision init`): required Google APIs, API key purposes with restrictions and
+  display-name templates ({customerIds} substitution), signing-cert fingerprints, billing,
+  Apple capabilities, APNs backup dir, and optional server-copy notices with per-customer URLs.
+* Requires Python 3.10+ plus a few pip packages for the provision verbs only; the driver
+  detects Python (including the broken Windows Store alias) and prints the exact
+  `pip install` command when packages are missing. Everything else works without Python.
+
 ## 2.1.7
 
 * Fix `--dryrun` not being honored by `git_restore` operations: `--transmute --dryrun` actually ran
