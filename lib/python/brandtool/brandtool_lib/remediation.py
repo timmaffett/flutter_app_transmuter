@@ -41,6 +41,10 @@ ADVICE = {
         'on a MISMATCH, --fix is not offered: determine which project the brand really '
         'uses (google-services.json reflects the live Firebase apps) and correct '
         'transmute.json by hand']},
+    'firebaseProjectNumber recorded': {'commands': [FIX], 'manual': [
+        'on a MISMATCH, --fix is not offered: google-services.json reflects the '
+        'live project - correct transmute.json (or refresh a stale '
+        'google-services.json via create-apps) by hand']},
     'billing linked': {'commands': [FIX], 'manual': [
         'or link manually: https://console.cloud.google.com/billing/linkedaccount?project={project}']},
     'required APIs': {'commands': [FIX], 'manual': [

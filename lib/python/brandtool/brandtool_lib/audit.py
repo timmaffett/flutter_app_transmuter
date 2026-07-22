@@ -148,6 +148,27 @@ def audit_brand(services, cfg, brand_dir, publisher=None):
         r.add('firebaseProjectId recorded', OK,
               f'{_val(tj_pid)} (no google-services.json to cross-check)')
 
+    # 1d. firebaseProjectNumber: live-inferable from google-services.json, so a
+    # missing/placeholder value is fixable here (the projectId fix backfills it
+    # only when the id itself was unrecorded - this covers the other case).
+    gs_num = cfgmod.google_services_project_number(brand_dir)
+    tj_num = str(data.get('firebaseProjectNumber') or '')
+    num_missing = not tj_num or bool(cfgmod.PLACEHOLDER_RE.search(tj_num))
+    if gs_num and num_missing:
+        def fix_record_number(number=str(gs_num)):
+            current = cfgmod.load_transmute(brand_dir)
+            current['firebaseProjectNumber'] = number
+            cfgmod.save_transmute(brand_dir, current)
+        r.add('firebaseProjectNumber recorded', ISSUE,
+              f'missing/placeholder in transmute.json; google-services.json says '
+              f'{_val(str(gs_num))}', fix=fix_record_number)
+    elif gs_num and tj_num != str(gs_num):
+        r.add('firebaseProjectNumber recorded', ISSUE,
+              f'transmute.json says "{_val(tj_num)}" but google-services.json says '
+              f'"{_val(str(gs_num))}" - conflicting sources; resolve manually')
+    elif tj_num and not num_missing:
+        r.add('firebaseProjectNumber recorded', OK, _val(tj_num))
+
     project_id = cfgmod.brand_project_id(brand_dir, data)
     if not project_id:
         r.add('project', ERROR, 'no firebaseProjectId or google-services.json - cannot audit further')

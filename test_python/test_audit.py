@@ -20,6 +20,7 @@ def make_brand(tmp_path, project_id='demo-proj', app_id='1:1:android:aaa',
         'packageName': 'com.demo.app', 'iosBundleIdentifier': 'com.demo.ios',
         'appName': 'Demo', 'billingAccountId': 'BILL-1',
         'firebaseProjectId': project_id,
+        'firebaseProjectNumber': '111222333',
         'firebaseProjectName': 'Demo Display Name',
         'apnsKeyId': 'APNS999999',
         'DEVELOPMENT_TEAM': 'TEAM123456',
@@ -862,3 +863,40 @@ def test_apns_firebase_upload_confirmed_is_ok(tmp_path):
     r = audit.audit_brand(healthy_services(), CFG, make_brand(tmp_path))
     check = [c for c in r.checks if c.name == 'APNs key in Firebase'][0]
     assert check.status == OK and 'upload confirmed' in check.detail
+
+
+def test_placeholder_project_number_is_fixable_from_google_services(tmp_path):
+    d = make_brand(tmp_path)
+    tj = os.path.join(d, 'transmute.json')
+    with open(tj) as f:
+        data = json.load(f)
+    data['firebaseProjectNumber'] = '############'   # starter-template placeholder
+    with open(tj, 'w') as f:
+        json.dump(data, f)
+    r = audit.audit_brand(healthy_services(), CFG, d)
+    check = [c for c in r.checks if c.name == 'firebaseProjectNumber recorded'][0]
+    assert check.status == ISSUE and check.fix is not None
+    assert '111222333' in check.detail       # the live number from google-services
+    check.fix()
+    with open(tj) as f:
+        assert json.load(f)['firebaseProjectNumber'] == '111222333'
+    # re-audit: recorded and matching -> ok, and the placeholder flag clears
+    r = audit.audit_brand(healthy_services(), CFG, d)
+    check = [c for c in r.checks if c.name == 'firebaseProjectNumber recorded'][0]
+    assert check.status == OK
+    fields = [c for c in r.checks if c.name == 'transmute.json fields'][0]
+    assert fields.status == OK
+
+
+def test_mismatched_project_number_is_flagged_not_fixed(tmp_path):
+    d = make_brand(tmp_path)
+    tj = os.path.join(d, 'transmute.json')
+    with open(tj) as f:
+        data = json.load(f)
+    data['firebaseProjectNumber'] = '999999999'
+    with open(tj, 'w') as f:
+        json.dump(data, f)
+    r = audit.audit_brand(healthy_services(), CFG, d)
+    check = [c for c in r.checks if c.name == 'firebaseProjectNumber recorded'][0]
+    assert check.status == ISSUE and check.fix is None
+    assert '999999999' in check.detail and '111222333' in check.detail
