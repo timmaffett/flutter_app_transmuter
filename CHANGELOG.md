@@ -6,6 +6,16 @@
   walkthrough (install gcloud via winget/brew/link, open a NEW terminal, run
   `gcloud auth application-default login` as the configured admin account, or pass
   --creds) instead of a raw DefaultCredentialsError traceback.
+* provision: check-agreements generates a ready-to-send email to each blocked team's
+  Apple Account Holder (accept the updated Developer Program License Agreement, with
+  the team's developer.apple.com deep link), saves it into the brand dir, and prints a
+  mailto: link that opens the user's mail program with to/subject/body prefilled. The
+  ASC API access-request email flow gains the same mailto: link. Optional template
+  override: apple.agreements_email_template in transmute_provisioning.yaml.
+* provision: a missing/placeholder firebaseProjectNumber is now a fixable audit issue
+  (recorded from google-services.json); mismatches are flagged for manual resolution.
+* All organization-specific internal names removed from shipped sources (internal
+  config key netparkAdminGrantee -> adminGrantee; yaml key was already admin_grantee).
 
 ## 2.2.0
 

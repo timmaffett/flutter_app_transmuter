@@ -124,3 +124,26 @@ def test_unknown_check_fallback_and_orange_header():
     text = remediation.render_addendum([r], color=True)
     assert '\x1b[38;5;208mADDENDUM' in text
     assert 'inspect: https://x' in text
+
+
+def test_mailto_url_encodes_subject_and_body():
+    url = remediation.mailto_url('holder@example.com', 'Sign the agreement',
+                                 'Line one\nLine two & more')
+    assert url.startswith('mailto:holder@example.com?')
+    assert 'subject=Sign%20the%20agreement' in url
+    assert 'body=Line%20one%0D%0ALine%20two%20%26%20more' in url
+
+
+def test_agreements_request_email_parts():
+    data = {'appleAccountHolderName': 'Jose M',
+            'appleAccountHolderEmail': 'info@victoriaairportparking.com',
+            'AppleDeveloperAccountName': 'Victoria Parking LLC',
+            'DEVELOPMENT_TEAM': 'FH9Z7T38QL',
+            'appName': 'Victoria Parking VIP'}
+    to, subject, body = remediation.agreements_request_email_parts(data)
+    assert to == 'info@victoriaairportparking.com'
+    assert 'Apple Developer Program License Agreement' in subject
+    assert 'Hi Jose M' in body
+    assert 'Account Holder for Victoria Parking LLC' in body
+    assert 'https://developer.apple.com/account/?teamId=FH9Z7T38QL' in body
+    assert 'appstoreconnect.apple.com/agreements' in body

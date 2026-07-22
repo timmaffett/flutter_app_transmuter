@@ -101,6 +101,16 @@ def handle_request_email(brand_dir, input_fn=input):
     print(email)
     print('=' * 78)
     print(f'(saved to {dest})')
+    # to/subject/body for the mailto: the saved text is 'To: ...\nSubject: ...\n\nbody'
+    header, _, mail_body = email.partition('\n\n')
+    lines = header.split('\n')
+    to_addr = data.get('appleAccountHolderEmail') or ''
+    subject = next((ln[len('Subject: '):] for ln in lines
+                    if ln.startswith('Subject: ')), 'Apple account action needed')
+    if to_addr:
+        print('Open in your mail program (click or copy the link):')
+        print('  ' + report_mod.paint(
+            remediation.mailto_url(to_addr, subject, mail_body), 'cyan'))
 
 
 def _brand_dir_problem(d):
@@ -811,6 +821,10 @@ def cmd_create(args):
 def cmd_check_agreements(args):
     """Fast Apple account/agreements sweep - no Google auth, one ASC probe per brand."""
     import json as jsonmod
+    try:
+        cfgmod.load_provisioning_config()   # org name/email templates, if configured
+    except SystemExit:
+        pass
     use_color = _color_enabled(args)
     report_mod.set_color(use_color)
     brand_dirs = cfgmod.find_brand_dirs(args.brands, require_google_services=False)
@@ -847,6 +861,29 @@ def cmd_check_agreements(args):
         for r in blocked:
             contact = f"{r['holder_name']} <{r['holder_email']}>".strip() or '(no contact recorded)'
             print(f"  {r['brand']}: {contact}")
+        by_brand = {r['brand']: r for r in results}
+        for d in brand_dirs:
+            brand = os.path.basename(os.path.normpath(d))
+            if by_brand.get(brand, {}).get('status') != 'ACTION NEEDED':
+                continue
+            try:
+                data = cfgmod.load_transmute(d)
+            except Exception:
+                continue
+            to, subject, body = remediation.agreements_request_email_parts(data)
+            text = f'To: {to}\nSubject: {subject}\n\n{body}'
+            dest = os.path.join(d, 'apple_agreements_request_email.txt')
+            with open(dest, 'w') as f:
+                f.write(text)
+            print()
+            print('=' * 78)
+            print(f'Suggested email for {report_mod.paint(brand, "value")} '
+                  f'(saved to {dest}):')
+            print(text)
+            print('=' * 78)
+            print('Open in your mail program (click or copy the link):')
+            print('  ' + report_mod.paint(
+                remediation.mailto_url(to, subject, body), 'cyan'))
     if counts.get('NO KEY'):
         print(report_mod.paint(
             f"status UNKNOWN for {counts['NO KEY']} brand(s) with no ASC Team Key - "

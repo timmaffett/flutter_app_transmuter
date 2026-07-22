@@ -28,6 +28,7 @@ BRANDS_ROOT = os.path.join(REPO_ROOT, _PROJECT_DEFAULTS['brands_root'])
 ORGANIZATION_NAME = 'our team'
 APNS_BACKUP_DIR = 'appleAPNPushKey'
 ACCESS_REQUEST_EMAIL_TEMPLATE = None
+AGREEMENTS_EMAIL_TEMPLATE = None
 
 # Values left over from starter-brand templates ("PLACE_..._HERE", "#####").
 PLACEHOLDER_RE = re.compile(r'_HERE|^#+$')
@@ -40,7 +41,7 @@ def load_provisioning_config(path=None):
     engine consumes, plus the generalized sections (apiKeyPurposes, server
     copies, Apple settings). Also points BRANDS_ROOT at the project: section."""
     global BRANDS_ROOT, ORGANIZATION_NAME, APNS_BACKUP_DIR
-    global ACCESS_REQUEST_EMAIL_TEMPLATE
+    global ACCESS_REQUEST_EMAIL_TEMPLATE, AGREEMENTS_EMAIL_TEMPLATE
     p = path or os.path.join(PROJECT_ROOT, PROVISIONING_FILE)
     if not os.path.exists(p):
         raise SystemExit(
@@ -58,6 +59,7 @@ def load_provisioning_config(path=None):
     ORGANIZATION_NAME = apple.get('organization_name', 'our team')
     APNS_BACKUP_DIR = apple.get('apns_backup_dir', 'appleAPNPushKey')
     ACCESS_REQUEST_EMAIL_TEMPLATE = apple.get('access_request_email_template')
+    AGREEMENTS_EMAIL_TEMPLATE = apple.get('agreements_email_template')
     return {
         'billingAccountId': g.get('billing_account', ''),
         'quotaProject': g.get('quota_project', ''),

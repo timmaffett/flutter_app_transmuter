@@ -174,6 +174,60 @@ def _apple_account_note(brand, brands_root=None):
     return ' (sign in as ' + ', '.join(parts) + ')'
 
 
+def mailto_url(to, subject, body):
+    """A mailto: link with subject/body prefilled - clicking it opens the user's
+    mail client with the message ready to send. CRLF line endings per RFC 2368."""
+    from urllib.parse import quote
+    return (f'mailto:{to}?subject={quote(subject, safe="")}'
+            f'&body={quote(body.replace(chr(10), chr(13) + chr(10)), safe="")}')
+
+
+def _email_fields(data):
+    from . import config as cfgmod
+    return {
+        'holder_name': data.get('appleAccountHolderName') or '[ACCOUNT HOLDER NAME]',
+        'holder_email': data.get('appleAccountHolderEmail') or '[ACCOUNT HOLDER EMAIL]',
+        'app_name': data.get('appName', '[APP NAME]'),
+        'account': (data.get('AppleDeveloperAccountName')
+                    or data.get('appleAccountHolderName')
+                    or '[APPLE DEVELOPER ACCOUNT]'),
+        'team': data.get('DEVELOPMENT_TEAM', '[TEAM ID]'),
+        'organization': cfgmod.ORGANIZATION_NAME,
+    }
+
+
+def agreements_request_email_parts(data):
+    """(to, subject, body) asking the Apple ACCOUNT HOLDER to accept the updated
+    Apple Developer Program License Agreement (the cause of check-agreements
+    ACTION NEEDED). Optional full-template override:
+    transmute_provisioning.yaml apple.agreements_email_template with the same
+    placeholders as the access-request template."""
+    from . import config as cfgmod
+    fields = _email_fields(data)
+    subject = ('Action needed: accept the updated Apple Developer Program '
+               'License Agreement for {account}').format(**fields)
+    template = cfgmod.AGREEMENTS_EMAIL_TEMPLATE or """Hi {holder_name},
+
+As the Account Holder for {account}, you may know that the terms of
+membership in the Apple Developer Program were recently updated.
+
+Please review and accept the updated Apple Developer Program License
+Agreement so we can continue submitting app updates and new apps to the
+App Store.
+
+You can do this by signing in to your account on the Apple Developer website:
+
+https://developer.apple.com/account/?teamId={team}
+
+(The agreement can also be reviewed under
+https://appstoreconnect.apple.com/agreements)
+
+Thanks,
+{organization}
+"""
+    return fields['holder_email'], subject, template.format(**fields)
+
+
 def asc_access_request_email(data):
     """Template email asking the client's Apple ACCOUNT HOLDER to enable App Store
     Connect API access (Apple allows only the Account Holder to click Request
