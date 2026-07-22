@@ -14,8 +14,8 @@ MAX_DISPLAY_NAME_LEN = 63   # API Keys v2 displayName hard limit
 
 
 def key_display_name(purpose, data, brand_dir=None, customer_id_pattern=r'\d+'):
-    """Render the purpose's displayName template. Customer ids (netPark:
-    "location ids") come from the brand dir name; if the rendered name blows
+    """Render the purpose's displayName template. Customer ids come from the
+    brand dir name; if the rendered name blows
     the 63-char cap, the configured name_overflow_strip prefix is dropped."""
     name = purpose['name']
     if '{customerIds}' in name or '{customerId}' in name:

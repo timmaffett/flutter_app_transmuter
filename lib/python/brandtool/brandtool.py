@@ -27,7 +27,7 @@ from brandtool_lib import uniqueness
 def get_context(args):
     cfg = cfgmod.load_tool_config(args.config)
     creds = auth.build_credentials(args.creds, cfg.get('quotaProject'),
-                                   admin_hint=cfg.get('netparkAdminGrantee'))
+                                   admin_hint=cfg.get('adminGrantee'))
     return cfg, auth.build_services(creds)
 
 
@@ -584,7 +584,7 @@ def cmd_create_project(args):
         print(f'  display name: {display}')
         print(f'  billing:      {cfg["billingAccountId"]}')
         print(f'  grants:       serviceAccount:{cfg["automationServiceAccount"]} (editor)')
-        admin = cfg.get('netparkAdminGrantee', '')
+        admin = cfg.get('adminGrantee', '')
         print(f'                user:{admin} (owner)' if admin else
               '                WARNING: admin_grantee empty - no admin grant')
         if not args.yes:
@@ -614,7 +614,7 @@ def cmd_create_project(args):
     print('granting standard access...')
     fb.grant_role(crm, project_id,
                   f'serviceAccount:{cfg["automationServiceAccount"]}', 'roles/editor')
-    admin = cfg.get('netparkAdminGrantee', '')
+    admin = cfg.get('adminGrantee', '')
     if admin:
         fb.grant_role(crm, project_id, f'user:{admin}', 'roles/owner')
     print('linking billing...')
@@ -979,18 +979,16 @@ def usage_guide():
       Idempotent - existing apps are detected and left alone.
 
   {c('create-keys')} <brand_dir>
-      Create the three restricted API keys - "Android Loyalty App Google Maps
-      SDK API Key" (signing certs x packageName + Maps SDK for Android API
-      target), "iOS Loyalty App Google Maps SDK API Key" (bundle id + Maps
-      SDK for iOS target), "Loyalty App Google Places API Key for netPark
-      Server <locationId(s)>" (both Places API targets). No brand prefix: the
-      project identifies the brand, and Google caps key names at 63 chars
-      (many-location brands drop 'Loyalty App' from the Places name to fit).
-      An existing key whose name matches the purpose (android+maps /
-      ios+maps / places) is adopted instead - its restrictions get corrected.
-      Also provisions the FCM messaging service account (honors
-      fcmServiceAccount if recorded) and its key file. All results are written
-      into transmute.json.
+      Create every API key declared in transmute_provisioning.yaml's api_keys
+      list, restricted per its config: android = signing certs x packageName,
+      ios = bundle id, api_only = API targets only (all also get their
+      services as API targets). Names come from each entry's template
+      ({{customerIds}} substituted from the brand dir name; Google caps names
+      at 63 chars - name_overflow_strip trims to fit). An existing key whose
+      display name matches the entry's match_tokens is adopted instead - its
+      restrictions get corrected. Also provisions the FCM messaging service
+      account (honors fcmServiceAccount if recorded) and its key file. All
+      results are written into transmute.json.
 
   {c('create')} <brand_dir> [--project-id ID] [--yes]
       One shot: {c('create-project')} -> {c('create-apps')} -> {c('create-keys')}, then the

@@ -769,7 +769,7 @@ def fcm_key_interactive_fix(services, brand_dir, project_id, data, email,
             try:
                 parsed = json.loads(raw)
             except ValueError:
-                # Depending on when the key was stored, the netPark admin page
+                # Depending on when the key was stored, the server admin page
                 # serves it either plain or HTML-entity encoded (&quot; etc.) -
                 # PHP handled it differently over time. Decode and retry.
                 import html

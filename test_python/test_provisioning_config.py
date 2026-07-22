@@ -53,7 +53,7 @@ def test_load_provisioning_config_maps_to_legacy_shape(tmp_path, monkeypatch):
     cfg = cfgmod.load_provisioning_config()
     assert cfg['billingAccountId'] == '0000-1111'
     assert cfg['quotaProject'] == 'qp-1'
-    assert cfg['netparkAdminGrantee'] == 'admin@example.com'
+    assert cfg['adminGrantee'] == 'admin@example.com'
     assert cfg['requiredApis'] == ['firebase.googleapis.com']
     assert cfg['debugSha1'] == 'AA:BB' and cfg['releaseSha256'] == 'EE:FF'
     assert cfg['iosRequiredCapabilities'] == ['PUSH_NOTIFICATIONS']

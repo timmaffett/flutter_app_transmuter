@@ -23,7 +23,7 @@ _PROJECT_DEFAULTS = {'brands_root': 'branded_loyalty',
                      'customer_id_pattern': r'\d+'}
 BRANDS_ROOT = os.path.join(REPO_ROOT, _PROJECT_DEFAULTS['brands_root'])
 
-# Set from transmute_provisioning.yaml at load; defaults keep the netPark-era
+# Set from transmute_provisioning.yaml at load; defaults match the historical
 # conventions so tests exercising individual checks need no config.
 ORGANIZATION_NAME = 'our team'
 APNS_BACKUP_DIR = 'appleAPNPushKey'
@@ -61,7 +61,7 @@ def load_provisioning_config(path=None):
     return {
         'billingAccountId': g.get('billing_account', ''),
         'quotaProject': g.get('quota_project', ''),
-        'netparkAdminGrantee': g.get('admin_grantee', ''),
+        'adminGrantee': g.get('admin_grantee', ''),
         'automationServiceAccount': g.get('automation_service_account', ''),
         'requiredApis': g.get('required_apis') or [],
         'debugSha1': certs.get('debug_sha1', ''),
