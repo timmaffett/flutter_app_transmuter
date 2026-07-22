@@ -26,7 +26,8 @@ from brandtool_lib import uniqueness
 
 def get_context(args):
     cfg = cfgmod.load_tool_config(args.config)
-    creds = auth.build_credentials(args.creds, cfg.get('quotaProject'))
+    creds = auth.build_credentials(args.creds, cfg.get('quotaProject'),
+                                   admin_hint=cfg.get('netparkAdminGrantee'))
     return cfg, auth.build_services(creds)
 
 

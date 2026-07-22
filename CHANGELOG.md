@@ -1,5 +1,12 @@
 # Changelog for flutter_app_transmuter
 
+## 2.2.1
+
+* provision: missing Google Application Default Credentials now exits with a full setup
+  walkthrough (install gcloud via winget/brew/link, open a NEW terminal, run
+  `gcloud auth application-default login` as the configured admin account, or pass
+  --creds) instead of a raw DefaultCredentialsError traceback.
+
 ## 2.2.0
 
 * New `transmute provision <verb>` command family: brand cloud provisioning and auditing

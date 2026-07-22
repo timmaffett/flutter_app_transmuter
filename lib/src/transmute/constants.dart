@@ -38,7 +38,7 @@ class Constants {
   /// global activation, or a compiled exe (where pubspec.yaml is unavailable).
   /// MUST be bumped alongside `version:` in pubspec.yaml on every release;
   /// test/version_test.dart guards against drift.
-  static const String packageVersion = '2.2.0';
+  static const String packageVersion = '2.2.1';
 
   static const String transmuteDefintionFile = 'transmute.json';
   static const String transmuteOperationsFile = 'transmute_operations.yaml';
