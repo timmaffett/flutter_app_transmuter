@@ -1,5 +1,17 @@
 # Changelog for flutter_app_transmuter
 
+## 2.2.2
+
+* `provision audit` now includes IAM security-hygiene checks (on by default; configurable via a
+  `security:` section, `enabled: false` opts out): messaging-SA least privilege (excess roles are
+  an ISSUE, `--fix` revokes them), a sweep for any project service account holding Owner/Editor
+  (Google-managed service agents exempt), unexpected service accounts, forbidden APIs enabled
+  (default: `compute.googleapis.com`, `--fix` disables), and user-managed key hygiene
+  (stray keys, multiple keys, optional max age). Born from a real key-compromise incident.
+* Fix `create-keys`/`create`: a newly created FCM messaging service account was granted project
+  **Editor**; it now gets only `roles/firebasecloudmessaging.admin` (Editor on a messaging SA
+  means a leaked key can enable APIs and create service accounts).
+
 ## 2.2.1
 
 * provision: missing Google Application Default Credentials now exits with a full setup

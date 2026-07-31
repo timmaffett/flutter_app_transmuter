@@ -107,3 +107,35 @@ def test_create_ios_app_drops_invalid_team_and_store_ids(capsys):
                       team_id='BW25647WCD', app_store_id='6446444444')
     assert captured[1]['teamId'] == 'BW25647WCD'
     assert captured[1]['appStoreId'] == '6446444444'
+
+
+def test_ensure_fcm_admin_creates_sa_with_narrow_fcm_role_not_editor(tmp_path):
+    # The jiffyseattle incident: an FCM messaging SA holding project Editor was
+    # compromised and used to enable Compute and create service accounts. A
+    # messaging SA must only ever get the narrow FCM Admin role.
+    import base64, json
+    granted_roles = []
+
+    def set_iam_policy(resource=None, body=None):
+        granted_roles.extend(b['role'] for b in body['policy']['bindings'])
+        return {}
+
+    iam = FakeResource(projects=FakeResource(serviceAccounts=FakeResource(
+        get=lambda name: Exception('not found'),
+        create=lambda name, body: {},
+        keys=FakeResource(create=lambda name, body: {
+            'privateKeyData': base64.b64encode(
+                json.dumps({'client_email': 'x@p.iam.gserviceaccount.com'}).encode()).decode(),
+            'name': 'projects/p/serviceAccounts/x/keys/abcdef1234567890',
+        }),
+    )))
+    crm = FakeResource(projects=FakeResource(
+        getIamPolicy=lambda resource: {'bindings': []},
+        setIamPolicy=set_iam_policy,
+    ))
+
+    filename = fb.ensure_fcm_admin(iam, crm, 'p', str(tmp_path))
+    assert filename.startswith('p-')
+    assert 'roles/editor' not in granted_roles, \
+        'messaging SA must never be granted project Editor'
+    assert granted_roles == [fb.FCM_ADMIN_ROLE]

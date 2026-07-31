@@ -80,6 +80,25 @@ def load_provisioning_config(path=None):
         'customerIdPattern': proj['customer_id_pattern'],
         'brandConfigName': proj['brand_config'],
         'starterBrandDir': proj['starter_brand_dir'],
+        'security': _security_section(raw.get('security')),
+    }
+
+
+def _security_section(sec):
+    """IAM-hygiene audit settings. On by default with safe defaults - an absent
+    section still audits; `security: {enabled: false}` opts out entirely."""
+    sec = sec or {}
+    if sec.get('enabled', True) is False:
+        return None
+    return {
+        'fcmSaAllowedRoles': sec.get('fcm_sa_allowed_roles')
+                             or ['roles/firebasecloudmessaging.admin'],
+        'forbiddenSaRoles': sec.get('forbidden_sa_roles')
+                            or ['roles/owner', 'roles/editor'],
+        'privilegedSaAllowlist': sec.get('privileged_sa_allowlist') or [],
+        'expectedServiceAccounts': sec.get('expected_service_accounts') or [],
+        'forbiddenApis': sec.get('forbidden_apis') or ['compute.googleapis.com'],
+        'maxKeyAgeDays': int(sec.get('max_key_age_days') or 0),
     }
 
 

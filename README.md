@@ -124,6 +124,15 @@ fingerprints, Apple App ID capabilities, and optional "a server keeps a copy of
 this key" notices with per-customer admin URLs. Delete the sections you don't
 use; the audit only checks what you declare.
 
+The audit also runs IAM **security-hygiene checks** on every brand project (on
+by default, tuned via the `security:` section): the FCM messaging service
+account must hold only `roles/firebasecloudmessaging.admin` (`--fix` revokes
+excess roles - a messaging SA holding Editor means a leaked key can enable APIs
+and create service accounts), no project service account may hold Owner/Editor,
+unknown service accounts and forbidden enabled APIs (default:
+`compute.googleapis.com`) are flagged, and user-managed keys are checked for
+strays, duplicates, and (optionally) age.
+
 ## 🚀 Quick Start
 
 1. Create a `transmute.json` in your Flutter project root:

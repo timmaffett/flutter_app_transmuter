@@ -389,6 +389,10 @@ def audit_brand(services, cfg, brand_dir, publisher=None):
                server_copy=cfg.get('fcmServerCopy'),
                customer_id_pattern=cfg.get('customerIdPattern', r'\d+'))
 
+    # 8b. IAM security hygiene (security: section; on by default, enabled: false opts out)
+    if cfg.get('security'):
+        _audit_security(r, services, cfg, data, brand_dir, project_id)
+
     # 9. Play
     if publisher is None:
         r.add('Play Store app', SKIP, 'play credentials not configured')
@@ -929,6 +933,186 @@ def _audit_fcm(r, services, brand_dir, data, project_id, server_copy=None,
     else:
         r.add('FCM admin key file', ISSUE,
               'messagingServiceAccountKeyFile missing (run create-keys)')
+
+
+def _effective_fcm_sa(brand_dir, data, project_id):
+    """The messaging SA the brand actually uses: recorded fcmServiceAccount,
+    else the key file's client_email, else the standard tooling name."""
+    email = cfgmod.real_value(data, 'fcmServiceAccount')
+    if email:
+        return email
+    keyfile = data.get('messagingServiceAccountKeyFile', '')
+    path = os.path.join(brand_dir, keyfile) if keyfile else ''
+    if keyfile and os.path.exists(path):
+        try:
+            with open(path) as f:
+                email = json.load(f).get('client_email') or ''
+        except Exception:
+            email = ''
+    return email or f'{fb.FCM_ADMIN_ID}@{project_id}.iam.gserviceaccount.com'
+
+
+def _is_default_sa(email):
+    """The compute / App Engine default SAs: Google-created but user-usable,
+    so they are reported (present) rather than treated as service agents."""
+    return (email.endswith('-compute@developer.gserviceaccount.com')
+            or email.endswith('@appspot.gserviceaccount.com'))
+
+
+def _audit_security(r, services, cfg, data, brand_dir, project_id):
+    """IAM hygiene checks, born from a real key-compromise incident: a brand's
+    FCM messaging SA had been (manually) granted project Editor; when its key
+    leaked, the attacker enabled Compute Engine and created a probe service
+    account ('test-acc'). These checks make each link of that chain an ISSUE:
+    excess roles on the messaging SA, forbidden roles on any project SA,
+    service accounts nobody expects, forbidden APIs enabled, and stray
+    user-managed keys."""
+    sec = cfg['security']
+    iam = services['iam']
+    crm = services.get('crm')
+    usage = services['usage']
+
+    allow_priv = set(sec.get('privilegedSaAllowlist') or [])
+    if cfg.get('automationServiceAccount'):
+        allow_priv.add(cfg['automationServiceAccount'])
+    fcm_sa = _effective_fcm_sa(brand_dir, data, project_id)
+    project_domain = f'@{project_id}.iam.gserviceaccount.com'
+
+    # 1. FCM SA least privilege + 2. privileged-role sweep (need the IAM policy)
+    if crm is None:
+        r.add('FCM SA least privilege', SKIP, 'cloudresourcemanager unavailable')
+        r.add('privileged service accounts', SKIP, 'cloudresourcemanager unavailable')
+    else:
+        try:
+            roles = fb.sa_roles_by_member(crm, project_id)
+            allowed = set(sec['fcmSaAllowedRoles'])
+            fcm_roles = roles.get(fcm_sa, set())
+            excess = sorted(fcm_roles - allowed)
+            if excess:
+                def fix_revoke(excess=tuple(excess), email=fcm_sa):
+                    for role in excess:
+                        fb.revoke_role(crm, project_id, f'serviceAccount:{email}', role)
+                        print(f'    revoked {role} from {email}')
+                danger = [x for x in excess if x in ('roles/editor', 'roles/owner')]
+                detail = (f'{_val(fcm_sa)} holds ' + ', '.join(_val(x) for x in excess)
+                          + ' beyond allowed ' + ', '.join(sec['fcmSaAllowedRoles']))
+                if danger:
+                    detail += (' - Editor/Owner on a messaging SA means a leaked key '
+                               'can enable APIs and create service accounts')
+                r.add('FCM SA least privilege', ISSUE, detail,
+                      fix=fix_revoke, flash=bool(danger))
+            elif not fcm_roles:
+                r.add('FCM SA least privilege', INFO,
+                      f'{_val(fcm_sa)} holds no project-level roles - push sends may '
+                      'fail unless access is granted another way (expected: '
+                      + ', '.join(sec['fcmSaAllowedRoles']) + ')')
+            else:
+                r.add('FCM SA least privilege', OK, ', '.join(sorted(fcm_roles)))
+
+            forbidden = set(sec['forbiddenSaRoles'])
+            offenders = []
+            for email, held in sorted(roles.items()):
+                if email == fcm_sa or email in allow_priv:
+                    continue  # fcm handled above; allowlist is deliberate
+                if not (email.endswith(project_domain) or _is_default_sa(email)):
+                    continue  # Google-managed service agents hold Editor by design
+                bad = sorted(held & forbidden)
+                if bad:
+                    offenders.append(f'{email} ({", ".join(bad)})')
+            if offenders:
+                r.add('privileged service accounts', ISSUE,
+                      'holding forbidden roles: ' + '; '.join(_val(o) for o in offenders)
+                      + ' - revoke the roles, or add deliberate ones to '
+                      'security.privileged_sa_allowlist', flash=True)
+            else:
+                r.add('privileged service accounts', OK)
+        except Exception as e:
+            r.add('FCM SA least privilege', ERROR, str(e)[:160])
+
+    # 3. unexpected service accounts + 5. key hygiene (need the SA list)
+    try:
+        accounts = fb.list_service_accounts(iam, project_id)
+        expected = (set(sec.get('expectedServiceAccounts') or [])
+                    | {fcm_sa} | allow_priv)
+        unexpected, defaults_present = [], []
+        for acct in accounts:
+            email = acct.get('email', '')
+            label = email + (' (disabled)' if acct.get('disabled') else '')
+            if email in expected or email.startswith('firebase-adminsdk-'):
+                continue
+            if _is_default_sa(email):
+                defaults_present.append(label)
+                continue
+            unexpected.append(label)
+        if unexpected:
+            r.add('unexpected service accounts', ISSUE,
+                  ', '.join(_val(u) for u in unexpected)
+                  + ' - not the messaging SA, firebase-adminsdk, or any '
+                  'security.expected_service_accounts entry; verify each one '
+                  '(a compromised key was once used to create a probe SA)',
+                  flash=True)
+        else:
+            r.add('unexpected service accounts', OK,
+                  f'{len(accounts)} account(s), all recognized')
+        if defaults_present:
+            r.add('default service accounts', INFO,
+                  ', '.join(_val(d) for d in defaults_present)
+                  + ' - Google-created defaults; disable them if unused')
+
+        key_issues = []
+        max_age = int(sec.get('maxKeyAgeDays') or 0)
+        for acct in accounts:
+            email = acct.get('email', '')
+            try:
+                keys = fb.list_user_managed_keys(iam, project_id, email)
+            except Exception:
+                continue
+            if not keys:
+                continue
+            if email != fcm_sa:
+                key_issues.append(f'{email} has {len(keys)} user-managed key(s) - '
+                                  'only the messaging SA should need one')
+            elif len(keys) > 1:
+                key_issues.append(f'{email} has {len(keys)} user-managed keys - '
+                                  'delete superseded ones')
+            if max_age:
+                import datetime
+                for key in keys:
+                    created = key.get('validAfterTime', '')
+                    try:
+                        age = (datetime.datetime.now(datetime.timezone.utc)
+                               - datetime.datetime.strptime(
+                                   created, '%Y-%m-%dT%H:%M:%SZ').replace(
+                                   tzinfo=datetime.timezone.utc)).days
+                    except ValueError:
+                        continue
+                    if age > max_age:
+                        key_issues.append(f'{email} key {key.get("name", "").split("/")[-1][:12]} '
+                                          f'is older than {max_age} days ({age}d) - rotate it')
+        if key_issues:
+            r.add('SA key hygiene', ISSUE, '; '.join(_val(k) for k in key_issues))
+        else:
+            r.add('SA key hygiene', OK)
+    except Exception as e:
+        r.add('unexpected service accounts', ERROR, str(e)[:160])
+
+    # 4. forbidden APIs
+    try:
+        enabled = fb.list_enabled_apis(usage, project_id)
+        bad = [a for a in sec['forbiddenApis'] if a in enabled]
+        if bad:
+            def fix_disable(apis=tuple(bad)):
+                for api in apis:
+                    fb.disable_api(usage, project_id, api)
+                    print(f'    disabled {api}')
+            r.add('forbidden APIs', ISSUE,
+                  'enabled: ' + ', '.join(_val(a) for a in bad)
+                  + ' - nothing in this stack uses them; enabled forbidden APIs '
+                  'have meant attacker activity before', fix=fix_disable, flash=True)
+        else:
+            r.add('forbidden APIs', OK)
+    except Exception as e:
+        r.add('forbidden APIs', ERROR, str(e)[:160])
 
 
 def _audit_project_name(r, services, brand_dir, data, project_id):

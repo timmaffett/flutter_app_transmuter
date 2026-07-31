@@ -70,6 +70,30 @@ google:
   # play:
   #   credentials_file: play_credentials.json
 
+# Service-account / IAM hygiene checks, audited on every brand. ON BY DEFAULT
+# even when this section is absent; set `enabled: false` to opt out. Born from
+# a real incident: a messaging service account had (by hand, months earlier)
+# been granted project Editor - when its key leaked, the attacker used it to
+# enable Compute Engine and create a probe service account. These checks catch
+# every link of that chain.
+security:
+  # Roles the FCM messaging SA may hold; anything more is an ISSUE and the
+  # audit --fix revokes the excess.
+  fcm_sa_allowed_roles: [roles/firebasecloudmessaging.admin]
+  # Roles no project-created service account may hold (Google-managed service
+  # agents are exempt - they hold Editor by design).
+  forbidden_sa_roles: [roles/owner, roles/editor]
+  # Service accounts allowed to hold the forbidden roles anyway
+  # (google.automation_service_account is implicitly allowed).
+  privileged_sa_allowlist: []
+  # Service accounts you know about beyond the messaging SA and
+  # firebase-adminsdk-*; anything else in the project is flagged.
+  expected_service_accounts: []
+  # APIs that must NOT be enabled on brand projects (--fix disables them).
+  forbidden_apis: [compute.googleapis.com]
+  # Flag user-managed keys older than this many days (0 = don't check age).
+  max_key_age_days: 0
+
 # One entry per Google API key each brand needs. `field` is the key's entry in
 # the brand's transmute.json; the audit verifies existence + restrictions, and
 # the fixes create/adopt keys with exactly these restrictions.

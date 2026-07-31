@@ -174,6 +174,62 @@ def download_ios_config(firebase, project_id, app_id, dest_dir):
     return content
 
 
+def list_service_accounts(iam, project_id):
+    """All service accounts resident in the project (includes user-created SAs
+    and the compute/appengine defaults, not Google-managed service agents)."""
+    accounts, page_token = [], None
+    while True:
+        resp = iam.projects().serviceAccounts().list(
+            name=f'projects/{project_id}', pageSize=100,
+            pageToken=page_token).execute()
+        accounts.extend(resp.get('accounts', []))
+        page_token = resp.get('nextPageToken')
+        if not page_token:
+            return accounts
+
+
+def list_user_managed_keys(iam, project_id, email):
+    resp = iam.projects().serviceAccounts().keys().list(
+        name=f'projects/{project_id}/serviceAccounts/{email}',
+        keyTypes='USER_MANAGED').execute()
+    return resp.get('keys', [])
+
+
+def sa_roles_by_member(crm, project_id):
+    """{service-account email: set of project-level roles} from the IAM policy."""
+    policy = crm.projects().getIamPolicy(resource=f'projects/{project_id}').execute()
+    roles = {}
+    for binding in policy.get('bindings', []):
+        for member in binding.get('members', []):
+            if member.startswith('serviceAccount:'):
+                roles.setdefault(member[len('serviceAccount:'):],
+                                 set()).add(binding.get('role'))
+    return roles
+
+
+def revoke_role(crm, project_id, member, role):
+    """Remove one member from one role binding; prunes emptied bindings.
+    Returns True when the policy was changed."""
+    policy = crm.projects().getIamPolicy(resource=f'projects/{project_id}').execute()
+    changed = False
+    for binding in policy.get('bindings', []):
+        if binding.get('role') == role and member in binding.get('members', []):
+            binding['members'].remove(member)
+            changed = True
+    if changed:
+        policy['bindings'] = [b for b in policy.get('bindings', []) if b.get('members')]
+        crm.projects().setIamPolicy(resource=f'projects/{project_id}',
+                                    body={'policy': policy}).execute()
+    return changed
+
+
+def disable_api(usage, project_id, api):
+    op = usage.services().disable(
+        name=f'projects/{project_id}/services/{api}', body={}).execute()
+    if not op.get('done'):
+        wait_for_operation(usage, op['name'])
+
+
 def service_account_exists(iam, project_id, email):
     try:
         iam.projects().serviceAccounts().get(
@@ -210,7 +266,10 @@ def ensure_fcm_admin(iam, crm, project_id, brand_dir, sa_email=None):
             name=f'projects/{project_id}',
             body={'accountId': FCM_ADMIN_ID,
                   'serviceAccount': {'displayName': 'Firebase Messaging Admin'}}).execute()
-        grant_role(crm, project_id, f'serviceAccount:{email}', 'roles/editor')
+        # Narrow role only: a messaging SA holding Editor was the root cause of a
+        # real key-compromise incident (Editor allows enabling APIs and creating
+        # service accounts). Sending pushes needs nothing beyond FCM Admin.
+        grant_role(crm, project_id, f'serviceAccount:{email}', FCM_ADMIN_ROLE)
     key_op = iam.projects().serviceAccounts().keys().create(
         name=f'projects/{project_id}/serviceAccounts/{email}',
         body={'privateKeyType': 'TYPE_GOOGLE_CREDENTIALS_FILE'}).execute()
