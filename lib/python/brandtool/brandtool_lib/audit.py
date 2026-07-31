@@ -963,7 +963,7 @@ def _audit_security(r, services, cfg, data, brand_dir, project_id):
     """IAM hygiene checks, born from a real key-compromise incident: a brand's
     FCM messaging SA had been (manually) granted project Editor; when its key
     leaked, the attacker enabled Compute Engine and created a probe service
-    account ('test-acc'). These checks make each link of that chain an ISSUE:
+    account. These checks make each link of that chain an ISSUE:
     excess roles on the messaging SA, forbidden roles on any project SA,
     service accounts nobody expects, forbidden APIs enabled, and stray
     user-managed keys."""

@@ -110,7 +110,7 @@ def test_create_ios_app_drops_invalid_team_and_store_ids(capsys):
 
 
 def test_ensure_fcm_admin_creates_sa_with_narrow_fcm_role_not_editor(tmp_path):
-    # The jiffyseattle incident: an FCM messaging SA holding project Editor was
+    # From a real incident: an FCM messaging SA holding project Editor was
     # compromised and used to enable Compute and create service accounts. A
     # messaging SA must only ever get the narrow FCM Admin role.
     import base64, json
